@@ -1,7 +1,7 @@
 #![no_std]
 #![no_main]
 
-use defmt::{info, *};
+use defmt::*;
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Ticker};
 use nrf_softdevice::{
@@ -25,7 +25,9 @@ const NAME: &[u8] = b"needle";
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
-    info!("Hello World!");
+    let mut config = embassy_nrf::config::Config::default();
+    config.time_interrupt_priority = embassy_nrf::interrupt::Priority::P2;
+    let _ = embassy_nrf::init(config);
 
     let config = nrf_softdevice::Config {
         clock: Some(raw::nrf_clock_lf_cfg_t {
