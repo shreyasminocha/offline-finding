@@ -3,6 +3,7 @@
 
 use defmt::*;
 use embassy_executor::Spawner;
+use embassy_futures::select::{select, Either};
 use embassy_time::{Duration, Ticker};
 use nrf_softdevice::{
     ble::{
@@ -21,7 +22,8 @@ async fn softdevice_task(sd: &'static Softdevice) -> ! {
     sd.run().await
 }
 
-const NAME: &[u8] = b"needle";
+const NAME: &[u8] = b"needle\0";
+const NAME_LEN: u16 = NAME.len() as u16;
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
@@ -37,7 +39,7 @@ async fn main(spawner: Spawner) {
             accuracy: raw::NRF_CLOCK_LF_ACCURACY_500_PPM as u8,
         }),
         conn_gap: Some(raw::ble_gap_conn_cfg_t {
-            conn_count: 0,
+            conn_count: 1,
             event_length: 24,
         }),
         conn_gatt: Some(raw::ble_gatt_conn_cfg_t { att_mtu: 256 }),
@@ -53,8 +55,8 @@ async fn main(spawner: Spawner) {
         }),
         gap_device_name: Some(raw::ble_gap_cfg_device_name_t {
             p_value: NAME.as_ptr() as _,
-            current_len: NAME.len().try_into().unwrap(),
-            max_len: 256,
+            current_len: NAME_LEN,
+            max_len: NAME_LEN,
             write_perm: raw::ble_gap_conn_sec_mode_t {
                 // disable write permissions
                 _bitfield_1: raw::ble_gap_conn_sec_mode_t::new_bitfield_1(0, 0),
@@ -71,10 +73,18 @@ async fn main(spawner: Spawner) {
 
     let mut ticker = Ticker::every(Duration::from_secs(2));
     loop {
+        info!("looping");
         let key: &[u8; 28] = b"super secret unguessable key";
         // TODO generate new keys at random. Or with a hash??
-        unwrap!(change_advertisement(sd, key).await);
-        ticker.next().await;
+
+        let mut tick = ticker.next();
+        let adv_future = change_advertisement(sd, key);
+        match select(&mut tick, adv_future).await {
+            Either::First(_) => continue, // ticker expired
+            Either::Second(Result::Err(err)) => warn!("error advertizing: {:?}", err),
+            Either::Second(Result::Ok(_)) => (),
+        };
+        tick.await;
     }
 }
 
@@ -82,15 +92,15 @@ async fn change_advertisement(sd: &Softdevice, key: &[u8; 28]) -> Result<(), Adv
     // Set the address as the first 6 bytes of the key
     let mut bytes: [u8; 6] = (&key[0..6]).try_into().unwrap();
     bytes[0] |= 0b11000000;
-    let addr = ble::Address::new(ble::AddressType::RandomStatic, bytes);
+    let addr = ble::Address::new(ble::AddressType::Public, bytes);
 
     // From the OpenHaystack paper
-    let mut data: [u8; 28] = [
+    let mut data: [u8; 29] = [
         0x4c, 0x00, // Apple company ID
         0x12, // Offline finding
         25,   // Length of following data
         0,    // Status (e.g. battery level) TODO put something here??
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // last 22 key bytes
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // last 22 key bytes
         0, // first two bytes of key
         0, // Hint. Indicates something about the lost device? 0x00 for iOS reports
     ];
