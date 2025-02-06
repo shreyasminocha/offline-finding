@@ -4,6 +4,10 @@
 use defmt::*;
 use embassy_executor::Spawner;
 use embassy_futures::select::{select, Either};
+use embassy_nrf::{
+    gpio::{Level, Output, OutputDrive},
+    interrupt,
+};
 use embassy_time::{Duration, Ticker};
 use nrf_softdevice::{
     ble::{
@@ -28,8 +32,8 @@ const NAME_LEN: u16 = NAME.len() as u16;
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
     let mut config = embassy_nrf::config::Config::default();
-    config.time_interrupt_priority = embassy_nrf::interrupt::Priority::P2;
-    let _ = embassy_nrf::init(config);
+    config.time_interrupt_priority = interrupt::Priority::P2;
+    let p = embassy_nrf::init(config);
 
     let config = nrf_softdevice::Config {
         clock: Some(raw::nrf_clock_lf_cfg_t {
@@ -71,14 +75,22 @@ async fn main(spawner: Spawner) {
     let sd = Softdevice::enable(&config);
     unwrap!(spawner.spawn(softdevice_task(sd)));
 
+    let col = Output::new(p.P0_31, Level::Low, OutputDrive::Standard);
+    let _ = col;
+    let mut pin = Output::new(p.P0_15, Level::Low, OutputDrive::Standard);
+
     let mut ticker = Ticker::every(Duration::from_secs(2));
     loop {
         info!("looping");
-        let key: &[u8; 28] = b"super secret unguessable key";
+        // let key: &[u8; 28] = b"\x2d\xac\x59\xc9\x58\x67\xd6\xb2\x87\x7f\xd7\xde\x5f\x5e\xb1\x96\x24\xfb\x79\x40\x4f\x07\x73\xdc\x28\x18\xf1\x29";
+        let mut key: [u8; 28] = [0; 28];
+        (0..28).for_each(|i| key[i] = i as u8);
+        let key = key;
         // TODO generate new keys at random. Or with a hash??
 
         let mut tick = ticker.next();
-        let adv_future = change_advertisement(sd, key);
+        let adv_future = change_advertisement(sd, &key);
+        pin.toggle();
         match select(&mut tick, adv_future).await {
             Either::First(_) => continue, // ticker expired
             Either::Second(Result::Err(err)) => warn!("error advertizing: {:?}", err),
