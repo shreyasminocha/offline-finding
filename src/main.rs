@@ -1,9 +1,9 @@
 #![no_std]
 #![no_main]
 
+use const_decoder::Decoder;
 use defmt::*;
 use embassy_executor::Spawner;
-use embassy_futures::select::{select, Either};
 use embassy_nrf::{
     gpio::{Level, Output, OutputDrive},
     interrupt,
@@ -20,6 +20,8 @@ use nrf_softdevice::{
 
 use defmt_rtt as _;
 use panic_probe as _;
+
+const ADV_KEY: [u8; 28] = Decoder::Base64.decode(b"/j3eaoofkmPIV4hAJTIh2qmE9s1W3Y4PoBoohg==");
 
 #[embassy_executor::task]
 async fn softdevice_task(sd: &'static Softdevice) -> ! {
@@ -79,24 +81,12 @@ async fn main(spawner: Spawner) {
     let _ = col;
     let mut pin = Output::new(p.P0_15, Level::Low, OutputDrive::Standard);
 
+    unwrap!(change_advertisement(sd, &ADV_KEY).await);
+
     let mut ticker = Ticker::every(Duration::from_secs(2));
     loop {
-        info!("looping");
-        // let key: &[u8; 28] = b"\x2d\xac\x59\xc9\x58\x67\xd6\xb2\x87\x7f\xd7\xde\x5f\x5e\xb1\x96\x24\xfb\x79\x40\x4f\x07\x73\xdc\x28\x18\xf1\x29";
-        let mut key: [u8; 28] = [0; 28];
-        (0..28).for_each(|i| key[i] = i as u8);
-        let key = key;
-        // TODO generate new keys at random. Or with a hash??
-
-        let mut tick = ticker.next();
-        let adv_future = change_advertisement(sd, &key);
+        ticker.next().await;
         pin.toggle();
-        match select(&mut tick, adv_future).await {
-            Either::First(_) => continue, // ticker expired
-            Either::Second(Result::Err(err)) => warn!("error advertizing: {:?}", err),
-            Either::Second(Result::Ok(_)) => (),
-        };
-        tick.await;
     }
 }
 
@@ -104,6 +94,7 @@ async fn change_advertisement(sd: &Softdevice, key: &[u8; 28]) -> Result<(), Adv
     // Set the address as the first 6 bytes of the key
     let mut bytes: [u8; 6] = (&key[0..6]).try_into().unwrap();
     bytes[0] |= 0b11000000;
+    bytes.reverse();
     let addr = ble::Address::new(ble::AddressType::Public, bytes);
 
     // From the OpenHaystack paper
@@ -133,7 +124,7 @@ async fn change_advertisement(sd: &Softdevice, key: &[u8; 28]) -> Result<(), Adv
         adv_data: &adv_data,
     };
     let config = peripheral::Config {
-        interval: 50,
+        interval: 1000, // 1 second interval
         ..Default::default()
     };
 
