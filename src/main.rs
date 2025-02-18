@@ -1,14 +1,15 @@
 #![no_std]
 #![no_main]
 
-use const_decoder::Decoder;
 use defmt::*;
 use embassy_executor::Spawner;
+use embassy_futures::select::{select, Either};
 use embassy_nrf::{
     gpio::{Level, Output, OutputDrive},
     interrupt,
 };
 use embassy_time::{Duration, Ticker};
+use embedded_alloc::LlffHeap as Heap;
 use nrf_softdevice::{
     ble::{
         self,
@@ -18,10 +19,22 @@ use nrf_softdevice::{
     raw, Softdevice,
 };
 
+use base64::{engine::general_purpose::STANDARD as base64, Engine as _};
+use num_bigint::BigUint;
+use p224::{
+    self,
+    elliptic_curve::{bigint::Encoding, rand_core::RngCore, sec1::ToEncodedPoint, Curve},
+    NistP224, SecretKey,
+};
+use sha2::{Digest, Sha256};
+
 use defmt_rtt as _;
 use panic_probe as _;
 
-const ADV_KEY: [u8; 28] = Decoder::Base64.decode(b"/j3eaoofkmPIV4hAJTIh2qmE9s1W3Y4PoBoohg==");
+use needle::sdrng::SoftdeviceRng;
+
+#[global_allocator]
+static HEAP: Heap = Heap::empty();
 
 #[embassy_executor::task]
 async fn softdevice_task(sd: &'static Softdevice) -> ! {
@@ -31,8 +44,19 @@ async fn softdevice_task(sd: &'static Softdevice) -> ! {
 const NAME: &[u8] = b"needle\0";
 const NAME_LEN: u16 = NAME.len() as u16;
 
+const KEY_ROTATION_PERIOD_SECONDS: u64 = 10;
+// TOFIX: are the docs accurate about the unit?
+const ADVERTISING_INTERVAL_625_NS_UNITS: u32 = 1000;
+
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
+    {
+        use core::mem::MaybeUninit;
+        const HEAP_SIZE: usize = 1024;
+        static mut HEAP_MEM: [MaybeUninit<u8>; HEAP_SIZE] = [MaybeUninit::uninit(); HEAP_SIZE];
+        unsafe { HEAP.init(&raw mut HEAP_MEM as usize, HEAP_SIZE) }
+    }
+
     let mut config = embassy_nrf::config::Config::default();
     config.time_interrupt_priority = interrupt::Priority::P2;
     let p = embassy_nrf::init(config);
@@ -81,30 +105,68 @@ async fn main(spawner: Spawner) {
     let _ = col;
     let mut pin = Output::new(p.P0_15, Level::Low, OutputDrive::Standard);
 
-    unwrap!(change_advertisement(sd, &ADV_KEY).await);
+    let mb_private_key = SecretKey::random(&mut SoftdeviceRng);
+    let _mb_public_key = mb_private_key.public_key();
 
-    let mut ticker = Ticker::every(Duration::from_secs(2));
+    let mut mb_symmetric_key = [0; 32];
+    SoftdeviceRng.fill_bytes(&mut mb_symmetric_key);
+
+    info!(
+        "master beacon private key: {}\nmaster beacon symmetric key: {}",
+        base64.encode(mb_private_key.to_bytes()).as_str(),
+        base64.encode(mb_symmetric_key).as_str()
+    );
+
+    let mut sk_i = mb_symmetric_key;
+
+    let mut ticker = Ticker::every(Duration::from_secs(KEY_ROTATION_PERIOD_SECONDS));
     loop {
-        ticker.next().await;
+        let (ad_private_key, new_sk) = generate_next_ephemeral_keys(&mb_private_key, &sk_i);
+        sk_i = new_sk;
+
+        // equation 4
+        let ad_public_key = ad_private_key.public_key();
+
+        let ad_public_key_point = ad_public_key.to_encoded_point(true);
+        let key: [u8; 28] = ad_public_key_point
+            .x()
+            .unwrap()
+            .as_slice()
+            .try_into()
+            .expect("the x coordinate of a P224 point must be 28 bytes long");
+
+        let mut hasher = Sha256::new();
+        hasher.update(key);
+        let hash = hasher.finalize();
+
+        debug!(
+            "\nhashed ephemeral public key: {}\nbluetooth mac address: {}",
+            base64.encode(hash).as_str(),
+            key_to_ble_mac_address(&key),
+        );
+
+        let mut tick = ticker.next();
+        let adv_future = change_advertisement(sd, &key);
         pin.toggle();
+
+        match select(&mut tick, adv_future).await {
+            Either::First(_) => continue, // ticker expired
+            Either::Second(Result::Err(err)) => warn!("error advertizing: {:?}", err),
+            Either::Second(Result::Ok(_)) => (),
+        };
+        tick.await;
     }
 }
 
 async fn change_advertisement(sd: &Softdevice, key: &[u8; 28]) -> Result<(), AdvertiseError> {
-    // Set the address as the first 6 bytes of the key
-    let mut bytes: [u8; 6] = (&key[0..6]).try_into().unwrap();
-    bytes[0] |= 0b11000000;
-    bytes.reverse();
-    let addr = ble::Address::new(ble::AddressType::Public, bytes);
-
     // From the OpenHaystack paper
     let mut data: [u8; 29] = [
-        0x4c, 0x00, // Apple company ID
-        0x12, // Offline finding
-        25,   // Length of following data
-        0,    // Status (e.g. battery level) TODO put something here??
+        0x4c, 0x00,       // Apple company ID
+        0x12,       // Offline finding
+        25,         // Length of following data
+        0b11100000, // Status (e.g. battery level)
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // last 22 key bytes
-        0, // first two bytes of key
+        0, // first two bits of key
         0, // Hint. Indicates something about the lost device? 0x00 for iOS reports
     ];
     data[5..27].copy_from_slice(&key[6..]);
@@ -124,10 +186,56 @@ async fn change_advertisement(sd: &Softdevice, key: &[u8; 28]) -> Result<(), Adv
         adv_data: &adv_data,
     };
     let config = peripheral::Config {
-        interval: 1000, // 1 second interval
+        interval: ADVERTISING_INTERVAL_625_NS_UNITS,
         ..Default::default()
     };
 
-    ble::set_address(sd, &addr);
+    ble::set_address(sd, &key_to_ble_mac_address(key));
     peripheral::advertise(sd, adv, &config).await
+}
+
+fn generate_next_ephemeral_keys(
+    mb_private_key: &SecretKey,
+    last_symmetric_key: &[u8; 32],
+) -> (SecretKey, [u8; 32]) {
+    // equation 1
+    let mut new_symmetric_key = [0u8; 32];
+    ansi_x963_kdf::derive_key_into::<Sha256>(last_symmetric_key, b"update", &mut new_symmetric_key)
+        .unwrap();
+
+    // equation 2
+    let mut uv = [0u8; 72];
+    ansi_x963_kdf::derive_key_into::<Sha256>(&new_symmetric_key, b"diversify", &mut uv).unwrap();
+
+    let (u, v) = uv.split_at(36);
+
+    // https://github.com/positive-security/find-you/blob/ab7a3a9/OpenHaystack/OpenHaystack/BoringSSL/BoringSSL.m#L194
+    let order = &BigUint::from_bytes_be(&NistP224::ORDER.to_be_bytes());
+    let order_minus_one = &(order - BigUint::from(1u8));
+    let u_i = (BigUint::from_bytes_be(u) % order_minus_one) + BigUint::from(1u8);
+    let v_i = (BigUint::from_bytes_be(v) % order_minus_one) + BigUint::from(1u8);
+
+    let d_0 = BigUint::from_bytes_be(mb_private_key.to_bytes().as_slice());
+
+    // equation 3
+    let d_i = (d_0 * u_i) + v_i;
+    let d_i = d_i % order;
+    let ephemeral_private_key = SecretKey::from_slice(&d_i.to_bytes_be()).unwrap();
+
+    (ephemeral_private_key, new_symmetric_key)
+}
+
+fn key_to_ble_mac_address(key: &[u8; 28]) -> ble::Address {
+    // Set the address as the first 6 bytes of the key
+    let mut addr_bytes_be: [u8; 6] = key
+        .get(0..6)
+        .expect("6 <= 28")
+        .try_into()
+        .expect("there are exactly six elements in the slice");
+    addr_bytes_be[0] |= 0b11000000;
+
+    let mut addr_bytes_le = addr_bytes_be;
+    addr_bytes_le.reverse();
+
+    ble::Address::new(ble::AddressType::Public, addr_bytes_le)
 }
