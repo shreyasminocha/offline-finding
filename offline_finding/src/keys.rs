@@ -3,6 +3,8 @@ use sha2::{Digest, Sha256};
 
 const TWO_MOST_SIGNIFICANT_BITS_MASK: u8 = 0b11000000;
 
+pub type SymmetricKey = [u8; 32];
+
 pub struct OfflineFindingPublicKey([u8; 28]);
 
 impl OfflineFindingPublicKey {

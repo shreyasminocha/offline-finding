@@ -20,7 +20,7 @@ use nrf_softdevice::{
 };
 
 use base64::{engine::general_purpose::STANDARD as base64, Engine as _};
-use offline_finding::{Accessory, OfflineFindingPublicKey};
+use offline_finding::{Accessory, LegitAirtag, OfflineFindingPublicKey};
 
 use defmt_rtt as _;
 use panic_probe as _;
@@ -99,7 +99,7 @@ async fn main(spawner: Spawner) {
     let _ = col;
     let mut pin = Output::new(p.P0_15, Level::Low, OutputDrive::Standard);
 
-    let (mut accessory, mb_private_key, mb_symmetric_key) = Accessory::random(&mut SoftdeviceRng);
+    let (mut accessory, mb_private_key, mb_symmetric_key) = LegitAirtag::random(&mut SoftdeviceRng);
 
     info!(
         "master beacon private key: {}",
