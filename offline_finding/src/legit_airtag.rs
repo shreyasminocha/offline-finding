@@ -17,8 +17,8 @@ pub struct LegitAirtag {
     current_symmetric_key: SymmetricKey,
 }
 
-impl Accessory for LegitAirtag {
-    fn new(private_key: SecretKey, symmetric_key: SymmetricKey) -> Self {
+impl LegitAirtag {
+    pub fn new(private_key: SecretKey, symmetric_key: SymmetricKey) -> Self {
         let mut accessory = LegitAirtag {
             master_beacon_private_key: private_key.clone(),
             master_beacon_symmetric_key: symmetric_key,
@@ -32,19 +32,23 @@ impl Accessory for LegitAirtag {
         accessory
     }
 
-    fn random(csprng: &mut impl CryptoRngCore) -> (Self, SecretKey, SymmetricKey) {
+    pub fn get_master_symmetric_key(&self) -> &SymmetricKey {
+        &self.master_beacon_symmetric_key
+    }
+
+    pub fn get_master_private_key(&self) -> &SecretKey {
+        &self.master_beacon_private_key
+    }
+}
+
+impl Accessory for LegitAirtag {
+    fn random(csprng: &mut impl CryptoRngCore) -> Self {
         let master_beacon_private_key = SecretKey::random(csprng);
 
         let mut master_beacon_symmetric_key = [0; 32];
         csprng.fill_bytes(&mut master_beacon_symmetric_key);
 
-        let accessory = Self::new(master_beacon_private_key, master_beacon_symmetric_key);
-
-        let mb_private_key = accessory.master_beacon_private_key.clone();
-        let mb_symmetric_key = accessory.master_beacon_symmetric_key;
-
-        // TODO: reconsider this return type
-        (accessory, mb_private_key, mb_symmetric_key)
+        Self::new(master_beacon_private_key, master_beacon_symmetric_key)
     }
 
     fn rotate_keys(&mut self) {
@@ -94,26 +98,22 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_returned_mb_keys_match_those_in_struct() {
-        let (accessory, mb_private_key, mb_symmetric_key) =
-            LegitAirtag::random(&mut rand::rngs::OsRng);
-
-        assert_eq!(mb_private_key, accessory.master_beacon_private_key);
-        assert_eq!(mb_symmetric_key, accessory.master_beacon_symmetric_key);
-    }
-
-    #[test]
     fn test_ephemeral_keys_not_same_as_master_ones() {
-        let (accessory, mb_private_key, mb_symmetric_key) =
-            LegitAirtag::random(&mut rand::rngs::OsRng);
+        let accessory = LegitAirtag::random(&mut rand::rngs::OsRng);
 
-        assert_ne!(mb_private_key, accessory.current_private_key);
-        assert_ne!(mb_symmetric_key, accessory.current_symmetric_key);
+        assert_ne!(
+            accessory.master_beacon_private_key,
+            accessory.current_private_key
+        );
+        assert_ne!(
+            accessory.master_beacon_symmetric_key,
+            accessory.current_symmetric_key
+        );
     }
 
     #[test]
     fn test_public_key_matches_current_private_key() {
-        let (accessory, _, _) = LegitAirtag::random(&mut rand::rngs::OsRng);
+        let accessory = LegitAirtag::random(&mut rand::rngs::OsRng);
         let accessory_public_key: [u8; 28] = accessory.get_current_public_key().into();
 
         let actual_public_key_point = accessory

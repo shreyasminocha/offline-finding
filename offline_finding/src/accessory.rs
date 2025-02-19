@@ -1,14 +1,11 @@
 use core::marker::Sized;
 
-use p224::{elliptic_curve::rand_core::CryptoRngCore, SecretKey};
+use p224::elliptic_curve::rand_core::CryptoRngCore;
 
-use crate::keys::{OfflineFindingPublicKey, SymmetricKey};
+use crate::keys::OfflineFindingPublicKey;
 
 pub trait Accessory {
-    fn new(private_key: SecretKey, symmetric_key: SymmetricKey) -> Self
-    where
-        Self: Sized;
-    fn random(csprng: &mut impl CryptoRngCore) -> (Self, SecretKey, SymmetricKey)
+    fn random(csprng: &mut impl CryptoRngCore) -> Self
     where
         Self: Sized;
     fn rotate_keys(&mut self);

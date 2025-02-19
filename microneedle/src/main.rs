@@ -99,15 +99,17 @@ async fn main(spawner: Spawner) {
     let _ = col;
     let mut pin = Output::new(p.P0_15, Level::Low, OutputDrive::Standard);
 
-    let (mut accessory, mb_private_key, mb_symmetric_key) = LegitAirtag::random(&mut SoftdeviceRng);
+    let mut accessory = LegitAirtag::random(&mut SoftdeviceRng);
 
     info!(
         "master beacon private key: {}",
-        base64.encode(mb_private_key.to_bytes()).as_str(),
+        base64
+            .encode(accessory.get_master_private_key().to_bytes())
+            .as_str(),
     );
     info!(
         "master beacon symmetric key: {}",
-        base64.encode(mb_symmetric_key).as_str()
+        base64.encode(accessory.get_master_symmetric_key()).as_str()
     );
 
     let mut ticker = Ticker::every(Duration::from_secs(KEY_ROTATION_PERIOD_SECONDS));
