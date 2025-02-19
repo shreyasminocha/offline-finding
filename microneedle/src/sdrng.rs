@@ -3,7 +3,7 @@ use core::num::NonZeroU32;
 use nrf_softdevice::raw::{
     sd_rand_application_bytes_available_get, sd_rand_application_vector_get, NRF_SUCCESS,
 };
-use p224::elliptic_curve::rand_core::{CryptoRng, Error, RngCore};
+use offline_finding::p224::elliptic_curve::rand_core::{CryptoRng, Error, RngCore};
 
 pub struct SoftdeviceRng;
 
