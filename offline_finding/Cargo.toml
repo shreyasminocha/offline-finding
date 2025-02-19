@@ -7,8 +7,9 @@ edition = "2021"
 ansi-x963-kdf = { version = "0.0.1", default-features = false }
 num-bigint = { version = "0.4.6", default-features = false }
 p224 = { version = "0.13.2", default-features = false, features = [ "arithmetic" ] }
-rand = { version = "0.6.4", default-features = false }
+rand_core = { version = "=0.6.4", default-features = false }
 sha2 = { version = "=0.11.0-pre.4", default-features = false }
 
 [dev-dependencies]
 const-decoder = { version = "0.4.0" }
+rand = "0.8.5"

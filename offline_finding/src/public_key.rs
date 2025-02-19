@@ -1,6 +1,8 @@
 use p224::{elliptic_curve::sec1::ToEncodedPoint, SecretKey};
 use sha2::{Digest, Sha256};
 
+const TWO_MOST_SIGNIFICANT_BITS_MASK: u8 = 0b11000000;
+
 pub struct OfflineFindingPublicKey([u8; 28]);
 
 impl OfflineFindingPublicKey {
@@ -11,7 +13,7 @@ impl OfflineFindingPublicKey {
             .expect("six < twenty-eight")
             .try_into()
             .expect("there are exactly six elements in the slice");
-        addr_bytes_be[0] |= 0b11000000;
+        addr_bytes_be[0] |= TWO_MOST_SIGNIFICANT_BITS_MASK;
 
         addr_bytes_be
     }
@@ -23,8 +25,7 @@ impl OfflineFindingPublicKey {
             0x12,       // Offline finding
             25,         // Length of following data
             0b11100000, // Status (e.g. battery level)
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, // last 22 key bytes
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // key[-22:]
             0, // first two bits of key
             0, // Hint. Indicates something about the lost device? 0x00 for iOS reports
         ];
@@ -56,6 +57,12 @@ impl From<&SecretKey> for OfflineFindingPublicKey {
     }
 }
 
+impl From<OfflineFindingPublicKey> for [u8; 28] {
+    fn from(value: OfflineFindingPublicKey) -> Self {
+        value.0
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use const_decoder::{decode, Decoder};
@@ -64,11 +71,62 @@ mod tests {
 
     #[test]
     fn test_to_ble_address_bytes_be() {
-        let public_key: [u8; 28] =
-            decode!(Decoder::Base64, b"/j3eaoofkmPIV4hAJTIh2qmE9s1W3Y4PoBoohg==");
+        let public_key = decode!(Decoder::Base64, b"/j3eaoofkmPIV4hAJTIh2qmE9s1W3Y4PoBoohg==");
         let of_public_key = OfflineFindingPublicKey(public_key);
         let mac = of_public_key.to_ble_address_bytes_be();
 
         assert_eq!(mac.as_slice(), decode!(Decoder::Hex, b"FE3DDE6A8A1F"));
+        assert_eq!(
+            mac[0] & TWO_MOST_SIGNIFICANT_BITS_MASK,
+            TWO_MOST_SIGNIFICANT_BITS_MASK
+        );
+    }
+
+    #[test]
+    fn test_to_ble_advertisement_data() {
+        let public_key = [0; 28];
+        let of_public_key = OfflineFindingPublicKey(public_key);
+        let ad_data = of_public_key.to_ble_advertisement_data();
+
+        assert_eq!(ad_data[0..2], [0x4c, 0x00]);
+        assert_eq!(ad_data[2], 0x12);
+        assert_eq!(ad_data[3], 25);
+        assert_eq!(ad_data[27], public_key[0] >> 6);
+    }
+
+    #[test]
+    fn test_hash() {
+        let public_key = decode!(Decoder::Base64, b"/j3eaoofkmPIV4hAJTIh2qmE9s1W3Y4PoBoohg==");
+        let of_public_key = OfflineFindingPublicKey(public_key);
+
+        assert_eq!(
+            of_public_key.hash(),
+            decode!(
+                Decoder::Base64,
+                b"RwPKNxB/wNDVZuQ8UEmKb2KHdakTHDNPTEvZ2kxRFvQ="
+            )
+        );
+    }
+
+    #[test]
+    fn test_reconstructed_public_key_matches() {
+        let public_key = [0; 28];
+        let of_public_key = OfflineFindingPublicKey(public_key);
+
+        let mac = of_public_key.to_ble_address_bytes_be();
+        let ad_data = of_public_key.to_ble_advertisement_data();
+
+        let thing = ad_data[27] << 6;
+        dbg!(thing, mac[0], mac[0] & !TWO_MOST_SIGNIFICANT_BITS_MASK);
+
+        let reconstructed_public_key = [
+            &[(ad_data[27] << 6) | (mac[0] & !TWO_MOST_SIGNIFICANT_BITS_MASK)],
+            &mac[1..6],
+            &ad_data[5..27],
+        ]
+        .concat();
+
+        assert_eq!(reconstructed_public_key.len(), 28);
+        assert_eq!(public_key.to_vec(), reconstructed_public_key);
     }
 }
