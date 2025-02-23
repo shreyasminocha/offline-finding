@@ -1,10 +1,12 @@
-use p224::{elliptic_curve::sec1::ToEncodedPoint, SecretKey};
+use p224::{
+    elliptic_curve::sec1::{CompressedPoint, Tag, ToEncodedPoint},
+    NistP224, PublicKey, SecretKey,
+};
 use sha2::{Digest, Sha256};
 
 const TWO_MOST_SIGNIFICANT_BITS_MASK: u8 = 0b11000000;
 
-pub type SymmetricKey = [u8; 32];
-
+#[derive(Debug, Clone)]
 pub struct OfflineFindingPublicKey([u8; 28]);
 
 impl OfflineFindingPublicKey {
@@ -59,9 +61,42 @@ impl From<&SecretKey> for OfflineFindingPublicKey {
     }
 }
 
+impl From<&PublicKey> for OfflineFindingPublicKey {
+    fn from(value: &PublicKey) -> Self {
+        let ad_public_key_point = value.to_encoded_point(true);
+        let key: [u8; 28] = ad_public_key_point
+            .x()
+            .unwrap()
+            .as_slice()
+            .try_into()
+            .expect("the x coordinate of a P224 point must be 28 bytes long");
+
+        Self(key)
+    }
+}
+
 impl From<OfflineFindingPublicKey> for [u8; 28] {
     fn from(value: OfflineFindingPublicKey) -> Self {
         value.0
+    }
+}
+
+impl From<&OfflineFindingPublicKey> for [u8; 28] {
+    fn from(value: &OfflineFindingPublicKey) -> Self {
+        value.0
+    }
+}
+
+impl From<&OfflineFindingPublicKey> for PublicKey {
+    fn from(value: &OfflineFindingPublicKey) -> Self {
+        let mut data = [0u8; 29];
+        data[0] = Tag::CompressedEvenY.into(); // `Tag::CompressedOddY` would also work fine
+        data[1..29].copy_from_slice(&value.0);
+
+        let compressed_point: CompressedPoint<NistP224> = data.into();
+
+        PublicKey::try_from(compressed_point)
+            .expect("assuming the original public key was valid, the new one should also be valid")
     }
 }
 

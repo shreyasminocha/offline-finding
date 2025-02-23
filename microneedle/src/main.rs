@@ -20,7 +20,10 @@ use nrf_softdevice::{
 };
 
 use base64::{engine::general_purpose::STANDARD as base64, Engine as _};
-use offline_finding::{Accessory, LegitAirtag, OfflineFindingPublicKey};
+use offline_finding::{
+    accessory::{Accessory, LegitAirtag},
+    protocol::OfflineFindingPublicKey,
+};
 
 use defmt_rtt as _;
 use panic_probe as _;

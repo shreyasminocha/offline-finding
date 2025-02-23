@@ -5,10 +5,9 @@ use p224::{
 };
 use sha2::Sha256;
 
-use crate::{
-    accessory::Accessory,
-    keys::{OfflineFindingPublicKey, SymmetricKey},
-};
+use crate::{accessory::Accessory, protocol::OfflineFindingPublicKey};
+
+pub type SymmetricKey = [u8; 32];
 
 pub struct LegitAirtag {
     master_beacon_private_key: SecretKey,
