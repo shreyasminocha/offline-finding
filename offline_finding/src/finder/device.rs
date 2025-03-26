@@ -3,7 +3,6 @@ use aes_gcm::{
     Key,
 };
 use anyhow::{anyhow, Result};
-use bincode::serialize;
 use p224::{elliptic_curve::ecdh, PublicKey};
 use rand_core::CryptoRngCore;
 use sha2::Sha256;
@@ -44,7 +43,7 @@ impl FinderDevice {
         let key = Key::<Aes>::from_slice(encryption_key);
         let mut cipher = Aes::new(key);
 
-        let encoded_location = serialize(&report.location)?;
+        let encoded_location = report.location.to_bytes();
 
         let mut encrypted_location = [0u8; 10];
         encrypted_location[0..10].copy_from_slice(&encoded_location);

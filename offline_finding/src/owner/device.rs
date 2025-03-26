@@ -3,11 +3,10 @@ use aes_gcm::{
     Key,
 };
 use anyhow::{anyhow, Result};
-use bincode::deserialize;
 use p224::{elliptic_curve::ecdh, SecretKey};
 use sha2::Sha256;
 
-use crate::protocol::{Aes, EncryptedReport, OfflineFindingPublicKey, Report};
+use crate::protocol::{Aes, EncryptedReport, Location, OfflineFindingPublicKey, Report};
 
 pub struct OwnerDevice();
 
@@ -52,7 +51,7 @@ impl OwnerDevice {
         Ok(Report {
             timestamp: encrypted_report.timestamp,
             confidence: encrypted_report.confidence,
-            location: deserialize(&decrypted_location)?,
+            location: Location::from_bytes(&decrypted_location).unwrap(),
         })
     }
 }
