@@ -22,16 +22,38 @@ impl OfflineFindingPublicKey {
         addr_bytes_be
     }
 
-    pub fn to_ble_advertisement_data(&self) -> [u8; 29] {
+    pub fn to_ble_advertisement_data(&self, metadata: BleAdvertisementMetadata) -> [u8; 29] {
         // From the OpenHaystack paper
         let mut data: [u8; 29] = [
-            0x4c, 0x00,       // Apple company ID
-            0x12,       // Offline finding
-            25,         // Length of following data
-            0b11100000, // Status (e.g. battery level)
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // key[-22:]
-            0, // first two bits of key
-            0, // Hint. Indicates something about the lost device? 0x00 for iOS reports
+            0x4c,
+            0x00,            // Apple company ID
+            0x12,            // Offline finding
+            25,              // Length of following data
+            metadata.status, // Status (e.g. battery level)
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,             // key[-22:]
+            0,             // first two bits of key
+            metadata.hint, // Hint. Indicates something about the lost device? 0x00 for iOS reports
         ];
         data[5..27].copy_from_slice(&self.0[6..]);
         data[27] = self.0[0] >> 6;
@@ -100,6 +122,20 @@ impl From<&OfflineFindingPublicKey> for PublicKey {
     }
 }
 
+pub struct BleAdvertisementMetadata {
+    pub status: u8,
+    pub hint: u8,
+}
+
+impl Default for BleAdvertisementMetadata {
+    fn default() -> Self {
+        Self {
+            status: 0b11100000, // low battery
+            hint: 0,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use const_decoder::{decode, Decoder};
@@ -123,7 +159,7 @@ mod tests {
     fn test_to_ble_advertisement_data() {
         let public_key = [0; 28];
         let of_public_key = OfflineFindingPublicKey(public_key);
-        let ad_data = of_public_key.to_ble_advertisement_data();
+        let ad_data = of_public_key.to_ble_advertisement_data(BleAdvertisementMetadata::default());
 
         assert_eq!(ad_data[0..2], [0x4c, 0x00]);
         assert_eq!(ad_data[2], 0x12);
@@ -151,7 +187,7 @@ mod tests {
         let of_public_key = OfflineFindingPublicKey(public_key);
 
         let mac = of_public_key.to_ble_address_bytes_be();
-        let ad_data = of_public_key.to_ble_advertisement_data();
+        let ad_data = of_public_key.to_ble_advertisement_data(BleAdvertisementMetadata::default());
 
         let thing = ad_data[27] << 6;
         dbg!(thing, mac[0], mac[0] & !TWO_MOST_SIGNIFICANT_BITS_MASK);

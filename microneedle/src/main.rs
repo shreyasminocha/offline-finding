@@ -22,7 +22,7 @@ use nrf_softdevice::{
 use base64::{engine::general_purpose::STANDARD as base64, Engine as _};
 use offline_finding::{
     accessory::{Accessory, LegitAirtag},
-    protocol::OfflineFindingPublicKey,
+    protocol::{OfflineFindingPublicKey, BleAdvertisementMetadata},
 };
 
 use defmt_rtt as _;
@@ -160,7 +160,7 @@ async fn broadcast_advertisement(
     let adv_data = LegacyAdvertisementBuilder::new()
         .raw(
             AdvertisementDataType::MANUFACTURER_SPECIFIC_DATA,
-            &public_key.to_ble_advertisement_data(),
+            &public_key.to_ble_advertisement_data(BleAdvertisementMetadata::default()),
         )
         .build();
     defmt::debug_assert_eq!(adv_data[0], 30, "adv_data was not 30 bytes");
