@@ -2,12 +2,12 @@ use p224::{
     elliptic_curve::sec1::{CompressedPoint, Tag, ToEncodedPoint},
     NistP224, PublicKey, SecretKey,
 };
-use sha2::{Digest, Sha256};
+use sha2_pre::{Digest, Sha256};
 
 const TWO_MOST_SIGNIFICANT_BITS_MASK: u8 = 0b11000000;
 
 #[derive(Debug, Clone)]
-pub struct OfflineFindingPublicKey([u8; 28]);
+pub struct OfflineFindingPublicKey(pub [u8; 28]);
 
 impl OfflineFindingPublicKey {
     pub fn to_ble_address_bytes_be(&self) -> [u8; 6] {
@@ -190,7 +190,6 @@ mod tests {
         let ad_data = of_public_key.to_ble_advertisement_data(BleAdvertisementMetadata::default());
 
         let thing = ad_data[27] << 6;
-        dbg!(thing, mac[0], mac[0] & !TWO_MOST_SIGNIFICANT_BITS_MASK);
 
         let reconstructed_public_key = [
             &[(ad_data[27] << 6) | (mac[0] & !TWO_MOST_SIGNIFICANT_BITS_MASK)],

@@ -5,7 +5,7 @@ use aes_gcm::{
 use anyhow::{anyhow, Result};
 use p224::{elliptic_curve::ecdh, PublicKey};
 use rand_core::CryptoRngCore;
-use sha2::Sha256;
+use sha2_pre::Sha256;
 
 use crate::protocol::{Aes, EncryptedReport, OfflineFindingPublicKey, Report};
 

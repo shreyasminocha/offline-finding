@@ -4,7 +4,7 @@ use aes_gcm::{
 };
 use anyhow::{anyhow, Result};
 use p224::{elliptic_curve::ecdh, SecretKey};
-use sha2::Sha256;
+use sha2_pre::Sha256;
 
 use crate::protocol::{Aes, EncryptedReport, Location, OfflineFindingPublicKey, Report};
 

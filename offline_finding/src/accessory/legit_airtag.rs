@@ -3,7 +3,7 @@ use p224::{
     elliptic_curve::{bigint::Encoding, rand_core::CryptoRngCore, Curve},
     NistP224, SecretKey,
 };
-use sha2::Sha256;
+use sha2_pre::Sha256;
 
 use crate::{accessory::Accessory, protocol::OfflineFindingPublicKey};
 
