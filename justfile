@@ -6,4 +6,4 @@ check:
 	cargo fmt -- --check
 
 test:
-	cargo test --target x86_64-unknown-linux-gnu
+	cargo test
