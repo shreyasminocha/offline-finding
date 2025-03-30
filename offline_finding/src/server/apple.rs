@@ -1,12 +1,18 @@
-use std::env;
+use std::{collections::HashMap, env};
 
 use anyhow::Result;
 use base64::{engine::general_purpose::STANDARD as b64, Engine as _};
+use p224::SecretKey;
 use rand::{rngs::OsRng, RngCore};
 use reqwest::{header::HeaderMap, Client};
 use serde::{Deserialize, Serialize};
 use sha2_stable::Digest;
 use srp::{client::SrpClient, groups::G_2048};
+
+use crate::{
+    owner::OwnerDevice,
+    protocol::{EncryptedReport, ReceivedReport},
+};
 
 use super::anisette::RemoteAnisetteProvider;
 
@@ -133,6 +139,38 @@ impl AppleReportsServer {
 
         // TODO: fully implement auth
         // TODO: implement 2FA
+    }
+
+    pub async fn fetch_and_decrypt_reports(
+        &mut self,
+        keys_and_ids: &[(&SecretKey, &[u8; 32])],
+    ) -> Result<Vec<ReceivedReport>> {
+        let ids: Vec<_> = keys_and_ids.iter().map(|(_, id)| *id).collect();
+        let id_to_key = HashMap::<&[u8; 32], &SecretKey>::from_iter(
+            keys_and_ids.iter().map(|(key, id)| (*id, *key)),
+        );
+        let raw_reports = self.fetch_raw_reports(ids.as_slice()).await.unwrap();
+
+        let owner_device = OwnerDevice(); // TODO: refactor this
+
+        let decrypted_reports: Result<Vec<ReceivedReport>> = raw_reports
+            .iter()
+            .map(|raw_report| {
+                let encrypted_report = raw_report.get_encrypted_report().unwrap();
+                let id_in_report = b64.decode(&raw_report.id).unwrap();
+                let id_in_report: &[u8; 32] = id_in_report
+                    .as_slice()
+                    .try_into()
+                    .expect("it should be a 32-byte hash");
+                let ephemeral_private_key = id_to_key
+                    .get(&id_in_report)
+                    .expect("we shouldn't be receiving reports from IDs we didn't ask for");
+
+                owner_device.decrypt_report(ephemeral_private_key, &encrypted_report)
+            })
+            .collect();
+
+        decrypted_reports
     }
 
     pub async fn fetch_raw_reports(
@@ -277,12 +315,19 @@ impl AppleReportsServer {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AppleReportResponse {
     #[serde(rename = "datePublished")]
-    date_published: u64,
-    payload: String,
+    date_published: u64, // TODO: swap this out for a date struct
+    payload: String, // TODO: swap this out for a slice or [`SerializedEncryptedReport`]
     description: String,
     id: String,
     #[serde(rename = "statusCode")]
     status_code: u8,
+}
+
+impl AppleReportResponse {
+    pub fn get_encrypted_report(&self) -> Result<EncryptedReport> {
+        let payload = b64.decode(&self.payload)?;
+        EncryptedReport::deserialize(payload.as_slice().try_into().unwrap())
+    }
 }
 
 pub enum KdfProtocol {

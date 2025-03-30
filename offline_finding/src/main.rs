@@ -3,9 +3,10 @@ use base64::{engine::general_purpose::STANDARD as b64, Engine as _};
 use clap::{Parser, Subcommand};
 
 use offline_finding::{
-    protocol::OfflineFindingPublicKey,
+    protocol::{OfflineFindingPublicKey, ReceivedReport},
     server::{AppleReportResponse, AppleReportsServer, RemoteAnisetteProvider},
 };
+use p224::SecretKey;
 
 #[derive(Parser)]
 struct CliParser {
@@ -76,7 +77,13 @@ async fn main() -> Result<()> {
             }
         }
         Command::FetchReports { private_key } => {
-            todo!("fetch and decrypt reports ({})", private_key)
+            let decoded = b64.decode(private_key)?;
+            let private_key = offline_finding::p224::SecretKey::from_slice(&decoded).unwrap();
+
+            let decrypted_reports = driver.fetch_reports(&private_key).await?;
+            for report in decrypted_reports {
+                println!("{:?}", report);
+            }
         }
     }
 
@@ -103,8 +110,23 @@ impl AppleOfflineFinding {
         // server.login("foo@example.com", "password").await.unwrap();
 
         let ids = [public_key_hash];
-        let reports = server.fetch_raw_reports(&ids).await.unwrap();
 
-        Ok(reports)
+        server.fetch_raw_reports(&ids).await
+    }
+
+    async fn fetch_reports(
+        &self,
+        ephemeral_private_key: &SecretKey,
+    ) -> Result<Vec<ReceivedReport>> {
+        let anisette_provider = RemoteAnisetteProvider::new(self.anisette_server.as_str());
+        let mut server = AppleReportsServer::new(anisette_provider);
+        // server.login("foo@example.com", "password").await.unwrap();
+
+        let public_key = OfflineFindingPublicKey::from(&ephemeral_private_key.public_key());
+        let public_key_hash = public_key.hash();
+
+        server
+            .fetch_and_decrypt_reports(&[(ephemeral_private_key, &public_key_hash)])
+            .await
     }
 }

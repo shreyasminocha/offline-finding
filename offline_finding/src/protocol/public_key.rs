@@ -189,8 +189,6 @@ mod tests {
         let mac = of_public_key.to_ble_address_bytes_be();
         let ad_data = of_public_key.to_ble_advertisement_data(BleAdvertisementMetadata::default());
 
-        let thing = ad_data[27] << 6;
-
         let reconstructed_public_key = [
             &[(ad_data[27] << 6) | (mac[0] & !TWO_MOST_SIGNIFICANT_BITS_MASK)],
             &mac[1..6],

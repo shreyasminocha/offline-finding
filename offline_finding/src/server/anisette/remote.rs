@@ -87,14 +87,3 @@ impl RemoteAnisetteProvider {
         Ok(cpd)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    async fn test() {
-        let provider = RemoteAnisetteProver::new("http://localhost:6969");
-        provider.get_headers().await
-    }
-}

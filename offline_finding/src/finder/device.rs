@@ -3,7 +3,10 @@ use aes_gcm::{
     Key,
 };
 use anyhow::{anyhow, Result};
-use p224::{elliptic_curve::ecdh, PublicKey};
+use p224::{
+    elliptic_curve::{ecdh, sec1::ToEncodedPoint},
+    PublicKey,
+};
 use rand_core::CryptoRngCore;
 use sha2_pre::Sha256;
 
@@ -20,6 +23,7 @@ impl FinderDevice {
     ) -> Result<EncryptedReport> {
         // (1) Generate a new ephemeral key
         let finder_secret = ecdh::EphemeralSecret::random(csprng);
+        let finder_public_key = finder_secret.public_key();
 
         // (2) Perform ECDH using the ephemeral private key and the advertised public key
         let advertised_public_key: PublicKey = PublicKey::from(accessory_public_key);
@@ -27,11 +31,12 @@ impl FinderDevice {
 
         // (3) Derive a symmetric key with ANSI X.963 KDF on the shared secret
         let mut symmetric_key = [0u8; 32];
-        let entropy: [u8; 28] = accessory_public_key.into();
+        let finder_public_key_point = finder_public_key.to_encoded_point(false);
+        let entropy = finder_public_key_point.as_bytes();
 
         ansi_x963_kdf::derive_key_into::<Sha256>(
             shared_secret.raw_secret_bytes(),
-            &entropy,
+            entropy,
             &mut symmetric_key,
         )?;
 
@@ -55,7 +60,7 @@ impl FinderDevice {
         Ok(EncryptedReport {
             timestamp: report.timestamp,
             confidence: report.confidence,
-            ephemeral_public_key: finder_secret.public_key(),
+            finder_public_key: finder_secret.public_key(),
             encrypted_location,
             tag: tag.into(),
         })
@@ -75,8 +80,8 @@ mod tests {
         let finder_device = FinderDevice();
 
         let location = Location {
-            latitude: 37,
-            longitude: 73,
+            latitude: 37.0,
+            longitude: 73.0,
             horizontal_accuracy: 5,
             status: 0,
         };

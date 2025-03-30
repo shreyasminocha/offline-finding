@@ -3,33 +3,36 @@ use aes_gcm::{
     Key,
 };
 use anyhow::{anyhow, Result};
-use p224::{elliptic_curve::ecdh, SecretKey};
+use p224::{
+    elliptic_curve::{ecdh, sec1::ToEncodedPoint},
+    SecretKey,
+};
 use sha2_pre::Sha256;
 
-use crate::protocol::{Aes, EncryptedReport, Location, OfflineFindingPublicKey, Report};
+use crate::protocol::{Aes, EncryptedReport, Location, ReceivedReport};
 
 pub struct OwnerDevice();
 
 impl OwnerDevice {
     pub fn decrypt_report(
         &self,
-        secret_key: &SecretKey,
+        accessory_private_key: &SecretKey,
         encrypted_report: &EncryptedReport,
-    ) -> Result<Report> {
-        let accessory_public_key: OfflineFindingPublicKey = (&secret_key.public_key()).into();
-        let finder_public_key = encrypted_report.ephemeral_public_key;
+    ) -> Result<ReceivedReport> {
+        let finder_public_key = encrypted_report.finder_public_key;
 
         let shared_secret = ecdh::diffie_hellman(
-            secret_key.to_nonzero_scalar(),
+            accessory_private_key.to_nonzero_scalar(),
             finder_public_key.as_affine(),
         );
 
         let mut symmetric_key = [0u8; 32];
-        let entropy: [u8; 28] = accessory_public_key.into();
+        let finder_public_key_point = encrypted_report.finder_public_key.to_encoded_point(false);
+        let entropy = finder_public_key_point.as_bytes();
 
         ansi_x963_kdf::derive_key_into::<Sha256>(
             shared_secret.raw_secret_bytes(),
-            &entropy,
+            entropy,
             &mut symmetric_key,
         )?;
 
@@ -38,7 +41,7 @@ impl OwnerDevice {
         let key = Key::<Aes>::from_slice(encryption_key);
         let mut cipher = Aes::new(key);
 
-        let mut decrypted_location = encrypted_report.encrypted_location;
+        let mut decrypted_location = encrypted_report.encrypted_location; // bytes are `Copy`'ed here
         cipher
             .decrypt_in_place_detached(
                 iv.into(),
@@ -48,9 +51,10 @@ impl OwnerDevice {
             )
             .map_err(|e| anyhow!(e))?;
 
-        Ok(Report {
+        Ok(ReceivedReport {
             timestamp: encrypted_report.timestamp,
             confidence: encrypted_report.confidence,
+            finder_public_key,
             location: Location::from_bytes(&decrypted_location).unwrap(),
         })
     }
@@ -58,9 +62,11 @@ impl OwnerDevice {
 
 #[cfg(test)]
 mod tests {
-    use p224::SecretKey;
-
-    use crate::{finder::FinderDevice, owner::OwnerDevice, protocol::Location};
+    use crate::{
+        finder::FinderDevice,
+        owner::OwnerDevice,
+        protocol::{Location, OfflineFindingPublicKey, Report},
+    };
 
     use super::*;
 
@@ -69,8 +75,8 @@ mod tests {
         let finder_device = FinderDevice();
 
         let location = Location {
-            latitude: 37,
-            longitude: 73,
+            latitude: 37.0,
+            longitude: 73.0,
             horizontal_accuracy: 5,
             status: 0,
         };
