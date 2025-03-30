@@ -165,7 +165,7 @@ mod tests {
             tag: [0; 16],
         };
 
-        let serialized: Vec<u8> = encrypted_report.serialize().into();
+        let serialized: crate::std::vec::Vec<u8> = encrypted_report.serialize().into();
         assert_eq!(serialized.len(), 88);
     }
 
