@@ -1,6 +1,64 @@
-[workspace]
-members = ["microneedle", "offline_finding"]
-resolver = "2"
-
-[workspace.package]
+[package]
+name = "offline-finding"
+version = "0.1.0"
 edition = "2021"
+
+[features]
+default = ["std"]
+std = [
+	"dep:clap",
+	"dep:tokio",
+	"clap/std",
+	"hex/std",
+	"rand/std",
+	"serde/derive",
+	"cbc/std",
+	"serde_json/std",
+]
+
+[[bin]]
+name = "offline-finding"
+required-features = ["std"]
+
+[dependencies]
+aes = { version = "0.8.4", default-features = false }
+aes-gcm = { version = "0.10.3", default-features = false, features = ["aes"] }
+ansi-x963-kdf = { version = "0.0.1", default-features = false }
+anyhow = { version = "1.0.96", default-features = false }
+base64 = { version = "0.22.1", default-features = false }
+cbc = { version = "0.1.2", default-features = false }
+chrono = { version = "0.4.40", default-features = false, features = [
+	"now",
+	"clock",
+] }
+clap = { version = "4.5.34", optional = true, default-features = false, features = [
+	"color",
+	"error-context",
+	"help",
+	"suggestions",
+	"usage",
+	"derive",
+] }
+hex = { version = "0.4.3", default-features = false }
+hmac = "0.12.1"
+num-bigint = { version = "0.4.6", default-features = false }
+p224 = { version = "0.13.2", default-features = false, features = [
+	"arithmetic",
+	"ecdh",
+	"pkcs8",
+] }
+pbkdf2 = { version = "0.12.2", default-features = false, features = ["hmac"] }
+plist = { version = "1.7.1", features = ["serde"] }
+rand = { version = "0.8.5", default-features = false }
+rand_core = { version = "=0.6.4", default-features = false }
+reqwest = { version = "0.12.15", features = ["json", "default-tls"] }
+serde = { version = "1.0.219", default-features = false }
+serde_json = { version = "1.0.140", default-features = false }
+sha2_pre = { package = "sha2", version = "=0.11.0-pre.4", default-features = false }
+sha2_stable = { package = "sha2", version = "0.10.8", default-features = false }
+srp = "0.6.0"
+tokio = { version = "1.44.1", optional = true, features = ["full"] }
+
+[dev-dependencies]
+const-decoder = { version = "0.4.0" }
+rand = "0.8.5"
