@@ -49,7 +49,7 @@ impl From<[u8; 89]> for SerializedEncryptedReport {
 impl TryFrom<&[u8]> for SerializedEncryptedReport {
     type Error = ();
 
-    fn try_from(value: &[u8]) -> std::result::Result<Self, Self::Error> {
+    fn try_from(value: &[u8]) -> core::result::Result<Self, Self::Error> {
         if let Ok(array) = TryInto::<[u8; 88]>::try_into(value) {
             Ok(SerializedEncryptedReport::LegacyFormat(array))
         } else if let Ok(array) = TryInto::<[u8; 89]>::try_into(value) {
@@ -60,7 +60,8 @@ impl TryFrom<&[u8]> for SerializedEncryptedReport {
     }
 }
 
-impl From<SerializedEncryptedReport> for Vec<u8> {
+#[cfg(feature = "std")]
+impl From<SerializedEncryptedReport> for crate::std::vec::Vec<u8> {
     fn from(value: SerializedEncryptedReport) -> Self {
         match value {
             SerializedEncryptedReport::LegacyFormat(array) => array.to_vec(),

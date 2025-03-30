@@ -1,4 +1,10 @@
-use std::{collections::HashMap, env};
+use crate::std::{
+    collections::HashMap,
+    env,
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
 
 use anyhow::Result;
 use base64::{engine::general_purpose::STANDARD as b64, Engine as _};

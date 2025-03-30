@@ -1,4 +1,7 @@
-use std::collections::HashMap;
+use crate::std::{
+    collections::HashMap,
+    string::{String, ToString},
+};
 
 use anyhow::Result;
 use reqwest::{

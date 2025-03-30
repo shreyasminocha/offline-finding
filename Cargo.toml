@@ -6,14 +6,23 @@ edition = "2021"
 [features]
 default = ["std"]
 std = [
+	"dep:cbc",
 	"dep:clap",
+	"dep:chrono",
+	"dep:pbkdf2",
+	"dep:plist",
+	"dep:reqwest",
+	"dep:serde",
+	"dep:serde_json",
+	"dep:srp",
 	"dep:tokio",
+	"dep:sha2_stable",
 	"clap/std",
 	"hex/std",
 	"rand/std",
-	"serde/derive",
 	"cbc/std",
 	"serde_json/std",
+	"serde/derive",
 ]
 
 [[bin]]
@@ -26,8 +35,8 @@ aes-gcm = { version = "0.10.3", default-features = false, features = ["aes"] }
 ansi-x963-kdf = { version = "0.0.1", default-features = false }
 anyhow = { version = "1.0.96", default-features = false }
 base64 = { version = "0.22.1", default-features = false }
-cbc = { version = "0.1.2", default-features = false }
-chrono = { version = "0.4.40", default-features = false, features = [
+cbc = { version = "0.1.2", optional = true, default-features = false }
+chrono = { version = "0.4.40", optional = true, default-features = false, features = [
 	"now",
 	"clock",
 ] }
@@ -47,16 +56,21 @@ p224 = { version = "0.13.2", default-features = false, features = [
 	"ecdh",
 	"pkcs8",
 ] }
-pbkdf2 = { version = "0.12.2", default-features = false, features = ["hmac"] }
-plist = { version = "1.7.1", features = ["serde"] }
+pbkdf2 = { version = "0.12.2", optional = true, default-features = false, features = [
+	"hmac",
+] }
+plist = { version = "1.7.1", optional = true, features = ["serde"] }
 rand = { version = "0.8.5", default-features = false }
 rand_core = { version = "=0.6.4", default-features = false }
-reqwest = { version = "0.12.15", features = ["json", "default-tls"] }
-serde = { version = "1.0.219", default-features = false }
-serde_json = { version = "1.0.140", default-features = false }
+reqwest = { version = "0.12.15", optional = true, features = [
+	"json",
+	"default-tls",
+] }
+serde = { version = "1.0.219", optional = true, default-features = false }
+serde_json = { version = "1.0.140", optional = true, default-features = false }
 sha2_pre = { package = "sha2", version = "=0.11.0-pre.4", default-features = false }
-sha2_stable = { package = "sha2", version = "0.10.8", default-features = false }
-srp = "0.6.0"
+sha2_stable = { package = "sha2", optional = true, version = "0.10.8", default-features = false }
+srp = { version = "0.6.0", optional = true }
 tokio = { version = "1.44.1", optional = true, features = ["full"] }
 
 [dev-dependencies]
