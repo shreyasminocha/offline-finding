@@ -17,12 +17,12 @@ pub struct LegitAirtag {
 }
 
 impl LegitAirtag {
-    pub fn new(private_key: SecretKey, symmetric_key: SymmetricKey) -> Self {
+    pub fn new(master_private_key: SecretKey, master_symmetric_key: SymmetricKey) -> Self {
         let mut accessory = LegitAirtag {
-            master_beacon_private_key: private_key.clone(),
-            master_beacon_symmetric_key: symmetric_key,
-            current_private_key: private_key,
-            current_symmetric_key: symmetric_key,
+            master_beacon_private_key: master_private_key.clone(),
+            master_beacon_symmetric_key: master_symmetric_key,
+            current_private_key: master_private_key,
+            current_symmetric_key: master_symmetric_key,
         };
 
         // important: generate initial ephemeral keys
@@ -31,23 +31,21 @@ impl LegitAirtag {
         accessory
     }
 
-    pub fn get_master_symmetric_key(&self) -> &SymmetricKey {
-        &self.master_beacon_symmetric_key
-    }
-
-    pub fn get_master_private_key(&self) -> &SecretKey {
-        &self.master_beacon_private_key
-    }
-}
-
-impl Accessory for LegitAirtag {
-    fn random(csprng: &mut impl CryptoRngCore) -> Self {
+    pub fn random(csprng: &mut impl CryptoRngCore) -> Self {
         let master_beacon_private_key = SecretKey::random(csprng);
 
         let mut master_beacon_symmetric_key = [0; 32];
         csprng.fill_bytes(&mut master_beacon_symmetric_key);
 
         Self::new(master_beacon_private_key, master_beacon_symmetric_key)
+    }
+
+    pub fn get_master_symmetric_key(&self) -> &SymmetricKey {
+        &self.master_beacon_symmetric_key
+    }
+
+    pub fn get_master_private_key(&self) -> &SecretKey {
+        &self.master_beacon_private_key
     }
 
     fn rotate_keys(&mut self) {
@@ -86,6 +84,31 @@ impl Accessory for LegitAirtag {
 
     fn get_current_public_key(&self) -> OfflineFindingPublicKey {
         OfflineFindingPublicKey::from(&self.current_private_key)
+    }
+}
+
+impl Accessory for LegitAirtag {
+    fn iter_our_keys(&self) -> impl Iterator<Item = (SecretKey, OfflineFindingPublicKey)> {
+        struct OurKeysIterator(LegitAirtag);
+
+        impl Iterator for OurKeysIterator {
+            type Item = (SecretKey, OfflineFindingPublicKey);
+
+            fn next(&mut self) -> Option<Self::Item> {
+                let item = (
+                    self.0.current_private_key.clone(),
+                    self.0.get_current_public_key(),
+                );
+                self.0.rotate_keys();
+
+                Some(item)
+            }
+        }
+
+        OurKeysIterator(LegitAirtag::new(
+            self.master_beacon_private_key.clone(),
+            self.master_beacon_symmetric_key,
+        ))
     }
 }
 
@@ -170,5 +193,13 @@ mod tests {
             actual,
             decode!(Decoder::Base64, b"mR9Q7KjvRPUt56j6vZFwgtOHV1+tT6hOcBbjEA==")
         );
+    }
+
+    #[test]
+    fn test_iterator_doesnt_include_master_key() {
+        let accessory = LegitAirtag::random(&mut rand::rngs::OsRng);
+        let mut iter = accessory.iter_our_keys();
+
+        assert_ne!(iter.next().unwrap().0, accessory.master_beacon_private_key);
     }
 }

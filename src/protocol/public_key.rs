@@ -6,7 +6,7 @@ use sha2_pre::{Digest, Sha256};
 
 const TWO_MOST_SIGNIFICANT_BITS_MASK: u8 = 0b11000000;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct OfflineFindingPublicKey(pub [u8; 28]);
 
 impl OfflineFindingPublicKey {

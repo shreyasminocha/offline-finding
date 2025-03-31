@@ -1,17 +1,11 @@
-use core::marker::Sized;
-
-use p224::elliptic_curve::rand_core::CryptoRngCore;
+use p224::SecretKey;
 
 use crate::protocol::OfflineFindingPublicKey;
 
 mod legit_airtag;
 
 pub trait Accessory {
-    fn random(csprng: &mut impl CryptoRngCore) -> Self
-    where
-        Self: Sized;
-    fn rotate_keys(&mut self);
-    fn get_current_public_key(&self) -> OfflineFindingPublicKey;
+    fn iter_our_keys(&self) -> impl Iterator<Item = (SecretKey, OfflineFindingPublicKey)>;
 }
 
 pub use legit_airtag::LegitAirtag;
