@@ -10,7 +10,7 @@ use p224::{
 use rand_core::CryptoRngCore;
 use sha2_pre::Sha256;
 
-use crate::protocol::{Aes, EncryptedReport, OfflineFindingPublicKey, Report};
+use crate::protocol::{Aes, EncryptedReportPayload, OfflineFindingPublicKey, ReportData};
 
 pub struct FinderDevice();
 
@@ -19,8 +19,8 @@ impl FinderDevice {
         &self,
         csprng: &mut impl CryptoRngCore,
         accessory_public_key: &OfflineFindingPublicKey,
-        report: &Report,
-    ) -> Result<EncryptedReport> {
+        report: &ReportData,
+    ) -> Result<EncryptedReportPayload> {
         // (1) Generate a new ephemeral key
         let finder_secret = ecdh::EphemeralSecret::random(csprng);
         let finder_public_key = finder_secret.public_key();
@@ -57,7 +57,7 @@ impl FinderDevice {
             .encrypt_in_place_detached(iv.into(), &[], &mut encrypted_location)
             .map_err(|e| anyhow!(e))?;
 
-        Ok(EncryptedReport {
+        Ok(EncryptedReportPayload {
             timestamp: report.timestamp,
             confidence: report.confidence,
             finder_public_key: finder_secret.public_key(),
@@ -86,7 +86,7 @@ mod tests {
             status: 0,
         };
 
-        let report = Report {
+        let report = ReportData {
             timestamp: 1000,
             confidence: 1,
             location: location.clone(),

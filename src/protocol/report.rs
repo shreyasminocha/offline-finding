@@ -1,26 +1,36 @@
 use anyhow::Result;
 use p224::{
     elliptic_curve::sec1::{FromEncodedPoint, ToEncodedPoint},
-    EncodedPoint, PublicKey,
+    EncodedPoint, PublicKey, SecretKey,
 };
 
+use crate::owner::OwnerDevice;
+
+pub trait ReportPayload {}
+
+// base64-encoded serialized payload, as fetched from apple servers
+#[cfg(feature = "std")]
+impl ReportPayload for std::string::String {}
+
 #[derive(Debug)]
-pub struct Report {
+pub struct ReportData {
     pub timestamp: u32,
     pub confidence: u8,
     pub location: Location,
 }
 
 #[derive(Debug)]
-pub struct ReceivedReport {
+pub struct ReportPayloadAsReceived {
     pub timestamp: u32,
     pub confidence: u8,
     pub finder_public_key: PublicKey,
     pub location: Location,
 }
 
+impl ReportPayload for ReportPayloadAsReceived {}
+
 #[derive(Debug)]
-pub struct EncryptedReport {
+pub struct EncryptedReportPayload {
     pub timestamp: u32,
     pub confidence: u8,
     /// Finder device's ephemeral public key from the keypair that was used during the location encryption process.
@@ -29,31 +39,40 @@ pub struct EncryptedReport {
     pub tag: [u8; 16],
 }
 
-pub enum SerializedEncryptedReport {
+impl EncryptedReportPayload {
+    pub fn decrypt(&self, private_key: SecretKey) -> Result<ReportPayloadAsReceived> {
+        let owner_device = OwnerDevice(); // todo: do this stuff here directly
+        owner_device.decrypt_report(&private_key, &self)
+    }
+}
+
+impl ReportPayload for EncryptedReportPayload {}
+
+pub enum SerializedEncryptedReportPayload {
     LegacyFormat([u8; 88]),
     NewFormat([u8; 89]), // https://github.com/MatthewKuKanich/FindMyFlipper/issues/61#issuecomment-2065003410
 }
 
-impl From<[u8; 88]> for SerializedEncryptedReport {
+impl From<[u8; 88]> for SerializedEncryptedReportPayload {
     fn from(value: [u8; 88]) -> Self {
-        SerializedEncryptedReport::LegacyFormat(value)
+        SerializedEncryptedReportPayload::LegacyFormat(value)
     }
 }
 
-impl From<[u8; 89]> for SerializedEncryptedReport {
+impl From<[u8; 89]> for SerializedEncryptedReportPayload {
     fn from(value: [u8; 89]) -> Self {
-        SerializedEncryptedReport::NewFormat(value)
+        SerializedEncryptedReportPayload::NewFormat(value)
     }
 }
 
-impl TryFrom<&[u8]> for SerializedEncryptedReport {
+impl TryFrom<&[u8]> for SerializedEncryptedReportPayload {
     type Error = ();
 
     fn try_from(value: &[u8]) -> core::result::Result<Self, Self::Error> {
         if let Ok(array) = TryInto::<[u8; 88]>::try_into(value) {
-            Ok(SerializedEncryptedReport::LegacyFormat(array))
+            Ok(SerializedEncryptedReportPayload::LegacyFormat(array))
         } else if let Ok(array) = TryInto::<[u8; 89]>::try_into(value) {
-            Ok(SerializedEncryptedReport::NewFormat(array))
+            Ok(SerializedEncryptedReportPayload::NewFormat(array))
         } else {
             Err(())
         }
@@ -61,17 +80,17 @@ impl TryFrom<&[u8]> for SerializedEncryptedReport {
 }
 
 #[cfg(feature = "std")]
-impl From<SerializedEncryptedReport> for crate::std::vec::Vec<u8> {
-    fn from(value: SerializedEncryptedReport) -> Self {
+impl From<SerializedEncryptedReportPayload> for crate::std::vec::Vec<u8> {
+    fn from(value: SerializedEncryptedReportPayload) -> Self {
         match value {
-            SerializedEncryptedReport::LegacyFormat(array) => array.to_vec(),
-            SerializedEncryptedReport::NewFormat(array) => array.to_vec(),
+            SerializedEncryptedReportPayload::LegacyFormat(array) => array.to_vec(),
+            SerializedEncryptedReportPayload::NewFormat(array) => array.to_vec(),
         }
     }
 }
 
-impl EncryptedReport {
-    pub fn serialize(&self) -> SerializedEncryptedReport {
+impl EncryptedReportPayload {
+    pub fn serialize(&self) -> SerializedEncryptedReportPayload {
         let point = self.finder_public_key.to_encoded_point(false);
 
         let mut output = [0; 88];
@@ -81,13 +100,15 @@ impl EncryptedReport {
         output[62..72].copy_from_slice(&self.encrypted_location);
         output[72..88].copy_from_slice(&self.tag);
 
-        SerializedEncryptedReport::LegacyFormat(output)
+        SerializedEncryptedReportPayload::LegacyFormat(output)
     }
 
-    pub fn deserialize(data: SerializedEncryptedReport) -> Result<Self> {
+    pub fn deserialize(data: SerializedEncryptedReportPayload) -> Result<Self> {
         let bytes = match data {
-            SerializedEncryptedReport::LegacyFormat(bs) => bs,
-            SerializedEncryptedReport::NewFormat(bs) => bs[1..].try_into().expect("89 - 1 == 88"),
+            SerializedEncryptedReportPayload::LegacyFormat(bs) => bs,
+            SerializedEncryptedReportPayload::NewFormat(bs) => {
+                bs[1..].try_into().expect("89 - 1 == 88")
+            }
         };
 
         let timestamp = u32::from_le_bytes(bytes[0..4].try_into().expect("correctly-sized slice"));
@@ -157,7 +178,7 @@ mod tests {
 
     #[test]
     fn test_serialized_encrypted_report_length() {
-        let encrypted_report = EncryptedReport {
+        let encrypted_report = EncryptedReportPayload {
             timestamp: 0,
             confidence: 0,
             finder_public_key: ecdh::EphemeralSecret::random(&mut rand::rngs::OsRng).public_key(),

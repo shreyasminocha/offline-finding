@@ -3,7 +3,7 @@ use base64::{engine::general_purpose::STANDARD as b64, Engine as _};
 use clap::{Parser, Subcommand};
 
 use offline_finding::{
-    protocol::{OfflineFindingPublicKey, ReceivedReport},
+    protocol::{OfflineFindingPublicKey, ReportPayloadAsReceived},
     server::{AppleReportResponse, AppleReportsServer, RemoteAnisetteProvider},
 };
 use p224::SecretKey;
@@ -71,7 +71,7 @@ async fn main() -> Result<()> {
                 _ => unreachable!("clap shouldn't let this happen"),
             };
 
-            let raw_reports = driver.fetch_raw_reports(&hashed_of_public_key).await?;
+            let raw_reports = driver.fetch_raw_reports(hashed_of_public_key).await?;
             for raw_report in raw_reports {
                 println!("{:?}", raw_report);
             }
@@ -103,8 +103,8 @@ impl AppleOfflineFinding {
 
     async fn fetch_raw_reports(
         &self,
-        public_key_hash: &[u8; 32],
-    ) -> Result<Vec<AppleReportResponse>> {
+        public_key_hash: [u8; 32],
+    ) -> Result<Vec<AppleReportResponse<String>>> {
         let anisette_provider = RemoteAnisetteProvider::new(self.anisette_server.as_str());
         let mut server = AppleReportsServer::new(anisette_provider);
         // server.login("foo@example.com", "password").await.unwrap();
@@ -117,7 +117,7 @@ impl AppleOfflineFinding {
     async fn fetch_reports(
         &self,
         ephemeral_private_key: &SecretKey,
-    ) -> Result<Vec<ReceivedReport>> {
+    ) -> Result<Vec<AppleReportResponse<ReportPayloadAsReceived>>> {
         let anisette_provider = RemoteAnisetteProvider::new(self.anisette_server.as_str());
         let mut server = AppleReportsServer::new(anisette_provider);
         // server.login("foo@example.com", "password").await.unwrap();
@@ -126,7 +126,7 @@ impl AppleOfflineFinding {
         let public_key_hash = public_key.hash();
 
         server
-            .fetch_and_decrypt_reports(&[(ephemeral_private_key, &public_key_hash)])
+            .fetch_and_decrypt_reports(&[(ephemeral_private_key.clone(), public_key_hash)])
             .await
     }
 }

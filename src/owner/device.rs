@@ -9,7 +9,7 @@ use p224::{
 };
 use sha2_pre::Sha256;
 
-use crate::protocol::{Aes, EncryptedReport, Location, ReceivedReport};
+use crate::protocol::{Aes, EncryptedReportPayload, Location, ReportPayloadAsReceived};
 
 pub struct OwnerDevice();
 
@@ -17,8 +17,8 @@ impl OwnerDevice {
     pub fn decrypt_report(
         &self,
         accessory_private_key: &SecretKey,
-        encrypted_report: &EncryptedReport,
-    ) -> Result<ReceivedReport> {
+        encrypted_report: &EncryptedReportPayload,
+    ) -> Result<ReportPayloadAsReceived> {
         let finder_public_key = encrypted_report.finder_public_key;
 
         let shared_secret = ecdh::diffie_hellman(
@@ -51,7 +51,7 @@ impl OwnerDevice {
             )
             .map_err(|e| anyhow!(e))?;
 
-        Ok(ReceivedReport {
+        Ok(ReportPayloadAsReceived {
             timestamp: encrypted_report.timestamp,
             confidence: encrypted_report.confidence,
             finder_public_key,
@@ -65,7 +65,7 @@ mod tests {
     use crate::{
         finder::FinderDevice,
         owner::OwnerDevice,
-        protocol::{Location, OfflineFindingPublicKey, Report},
+        protocol::{Location, OfflineFindingPublicKey, ReportData},
     };
 
     use super::*;
@@ -89,7 +89,7 @@ mod tests {
             .encrypt_report(
                 &mut rand::rngs::OsRng,
                 &accessory_public_key,
-                &Report {
+                &ReportData {
                     timestamp: 1000,
                     confidence: 1,
                     location: location.clone(),
