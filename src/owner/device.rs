@@ -54,7 +54,7 @@ impl OwnerDevice {
         Ok(ReportPayloadAsReceived {
             timestamp: encrypted_report.timestamp,
             confidence: encrypted_report.confidence,
-            finder_public_key,
+            finder_public_key: (&finder_public_key).into(),
             location: Location::from_bytes(&decrypted_location).unwrap(),
         })
     }

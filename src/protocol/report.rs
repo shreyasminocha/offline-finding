@@ -1,10 +1,15 @@
+use core::fmt::Debug;
+
 use anyhow::Result;
+use base64::{engine::general_purpose::STANDARD as b64, Engine as _};
 use p224::{
     elliptic_curve::sec1::{FromEncodedPoint, ToEncodedPoint},
     EncodedPoint, PublicKey, SecretKey,
 };
 
 use crate::owner::OwnerDevice;
+
+use super::OfflineFindingPublicKey;
 
 pub trait ReportPayload {}
 
@@ -19,15 +24,25 @@ pub struct ReportData {
     pub location: Location,
 }
 
-#[derive(Debug)]
 pub struct ReportPayloadAsReceived {
     pub timestamp: u32,
     pub confidence: u8,
-    pub finder_public_key: PublicKey,
+    pub finder_public_key: OfflineFindingPublicKey,
     pub location: Location,
 }
 
 impl ReportPayload for ReportPayloadAsReceived {}
+
+impl Debug for ReportPayloadAsReceived {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("ReportPayloadAsReceived")
+            .field("timestamp", &self.timestamp)
+            .field("confidence", &self.confidence)
+            .field("finder_public_key", &b64.encode(&self.finder_public_key.0))
+            .field("location", &self.location)
+            .finish()
+    }
+}
 
 #[derive(Debug)]
 pub struct EncryptedReportPayload {
