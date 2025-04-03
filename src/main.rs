@@ -1,12 +1,12 @@
-use anyhow::Result;
+use anyhow::{bail, Result};
 use base64::{engine::general_purpose::STANDARD as b64, Engine as _};
 use clap::{Parser, Subcommand};
 
 use offline_finding::{
+    p224::SecretKey,
     protocol::{OfflineFindingPublicKey, ReportPayloadAsReceived},
     server::{AppleReportResponse, AppleReportsServer, RemoteAnisetteProvider},
 };
-use p224::SecretKey;
 
 #[derive(Parser)]
 struct CliParser {
@@ -34,7 +34,7 @@ enum Command {
         hashed_public_key: Option<String>,
     },
     /// Fetch reports from Apple's server by private key and decrypt them.
-    FetchReports { private_key: String },
+    FetchReports { private_keys: Vec<String> },
 }
 
 #[tokio::main]
@@ -51,9 +51,7 @@ async fn main() -> Result<()> {
             let hashed_of_public_key = match (private_key, public_key, hashed_public_key) {
                 (Some(sk), _, _) => {
                     let decoded = b64.decode(sk)?;
-                    let public_key = offline_finding::p224::SecretKey::from_slice(&decoded)
-                        .unwrap()
-                        .public_key();
+                    let public_key = SecretKey::from_slice(&decoded).unwrap().public_key();
                     let of_public_key = OfflineFindingPublicKey::from(&public_key);
 
                     of_public_key.hash()
@@ -76,11 +74,17 @@ async fn main() -> Result<()> {
                 println!("{:?}", raw_report);
             }
         }
-        Command::FetchReports { private_key } => {
-            let decoded = b64.decode(private_key)?;
-            let private_key = offline_finding::p224::SecretKey::from_slice(&decoded).unwrap();
+        Command::FetchReports { private_keys } => {
+            if private_keys.len() > 255 {
+                bail!("we don't support fetching more than 255 keys at once");
+            }
 
-            let decrypted_reports = driver.fetch_reports(&private_key).await?;
+            let decoded_private_keys: Vec<_> = private_keys
+                .iter()
+                .map(|sk| SecretKey::from_slice(b64.decode(sk).unwrap().as_slice()).unwrap())
+                .collect();
+
+            let decrypted_reports = driver.fetch_reports(decoded_private_keys).await?;
             for report in decrypted_reports {
                 println!("{:?}", report);
             }
@@ -116,17 +120,24 @@ impl AppleOfflineFinding {
 
     async fn fetch_reports(
         &self,
-        ephemeral_private_key: &SecretKey,
+        ephemeral_private_keys: Vec<SecretKey>,
     ) -> Result<Vec<AppleReportResponse<ReportPayloadAsReceived>>> {
         let anisette_provider = RemoteAnisetteProvider::new(self.anisette_server.as_str());
         let mut server = AppleReportsServer::new(anisette_provider);
         // server.login("foo@example.com", "password").await.unwrap();
 
-        let public_key = OfflineFindingPublicKey::from(&ephemeral_private_key.public_key());
-        let public_key_hash = public_key.hash();
+        let key_hash_pairs: Vec<_> = ephemeral_private_keys
+            .into_iter()
+            .map(|epk| {
+                (
+                    epk.clone(),
+                    OfflineFindingPublicKey::from(&epk.public_key()).hash(),
+                )
+            })
+            .collect();
 
         server
-            .fetch_and_decrypt_reports(&[(ephemeral_private_key.clone(), public_key_hash)])
+            .fetch_and_decrypt_reports(key_hash_pairs.as_slice())
             .await
     }
 }
