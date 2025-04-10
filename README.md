@@ -1,5 +1,9 @@
 # Offline Finding
 
+> [!WARNING]
+>
+> Little-to-none documentation and testing. Proceed at your own risk.
+
 ## CLI
 
 Make sure to set the environment variables listed in `.env.example`. For the time being, we generate these with [FindMy.py](https://github.com/malmeloo/FindMy.py). Using FindMy.py's `account.json`:
@@ -21,3 +25,7 @@ cargo run -- --anisette-server 'http://localhost:8000' fetch-reports '[base64-en
 ```
 
 See `cargo run -- --help` for more.
+
+## Contributing
+
+Please do.
