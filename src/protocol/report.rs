@@ -44,7 +44,6 @@ impl Debug for ReportPayloadAsReceived {
     }
 }
 
-#[derive(Debug)]
 pub struct EncryptedReportPayload {
     pub timestamp: u32,
     pub confidence: u8,
@@ -62,6 +61,24 @@ impl EncryptedReportPayload {
 }
 
 impl ReportPayload for EncryptedReportPayload {}
+
+impl Debug for EncryptedReportPayload {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("EncryptedReportPayload")
+            .field("timestamp", &self.timestamp)
+            .field("confidence", &self.confidence)
+            .field(
+                "finder_public_key",
+                &b64.encode(OfflineFindingPublicKey::from(&self.finder_public_key).0),
+            )
+            .field(
+                "encrypted_location",
+                &hex::encode_upper(&self.encrypted_location),
+            )
+            .field("tag", &hex::encode_upper(&self.encrypted_location))
+            .finish()
+    }
+}
 
 pub enum SerializedEncryptedReportPayload {
     LegacyFormat([u8; 88]),

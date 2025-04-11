@@ -1,3 +1,4 @@
+use base64::{engine::general_purpose::STANDARD as b64, Engine};
 use p224::{
     elliptic_curve::sec1::{CompressedPoint, Tag, ToEncodedPoint},
     NistP224, PublicKey, SecretKey,
@@ -6,7 +7,7 @@ use sha2_pre::{Digest, Sha256};
 
 const TWO_MOST_SIGNIFICANT_BITS_MASK: u8 = 0b11000000;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct OfflineFindingPublicKey(pub [u8; 28]);
 
 impl OfflineFindingPublicKey {
@@ -106,6 +107,21 @@ impl From<OfflineFindingPublicKey> for [u8; 28] {
 impl From<&OfflineFindingPublicKey> for [u8; 28] {
     fn from(value: &OfflineFindingPublicKey) -> Self {
         value.0
+    }
+}
+
+#[cfg(feature = "std")]
+impl From<&OfflineFindingPublicKey> for crate::std::string::String {
+    fn from(value: &OfflineFindingPublicKey) -> Self {
+        b64.encode(value.0)
+    }
+}
+
+impl core::fmt::Debug for OfflineFindingPublicKey {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("OfflineFindingPublicKey")
+            .field("key", &b64.encode(self.0))
+            .finish()
     }
 }
 

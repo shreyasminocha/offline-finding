@@ -4,7 +4,7 @@ use clap::{Parser, Subcommand};
 
 use offline_finding::{
     p224::SecretKey,
-    protocol::{OfflineFindingPublicKey, ReportPayloadAsReceived},
+    protocol::{EncryptedReportPayload, OfflineFindingPublicKey, ReportPayloadAsReceived},
     server::{AppleReportResponse, AppleReportsServer, RemoteAnisetteProvider},
 };
 
@@ -108,7 +108,7 @@ impl AppleOfflineFinding {
     async fn fetch_raw_reports(
         &self,
         public_key_hash: [u8; 32],
-    ) -> Result<Vec<AppleReportResponse<String>>> {
+    ) -> Result<Vec<AppleReportResponse<EncryptedReportPayload>>> {
         let anisette_provider = RemoteAnisetteProvider::new(self.anisette_server.as_str());
         let mut server = AppleReportsServer::new(anisette_provider);
         // server.login("foo@example.com", "password").await.unwrap();

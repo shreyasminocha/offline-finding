@@ -181,7 +181,7 @@ impl AppleReportsServer {
     pub async fn fetch_raw_reports(
         &mut self,
         ids: &[[u8; 32]],
-    ) -> Result<Vec<AppleReportResponse<String>>> {
+    ) -> Result<Vec<AppleReportResponse<EncryptedReportPayload>>> {
         let headers = self.anisette_provider.get_headers(false).await;
 
         let fetch_request = ReportFetchRequest {
@@ -212,7 +212,10 @@ impl AppleReportsServer {
         let response = request.send().await?;
         let body: Response = response.json().await?;
 
-        Ok(body.results)
+        body.results
+            .into_iter()
+            .map(|response| response.try_into())
+            .collect()
     }
 
     async fn gsa_request(&mut self, data: &GsaRequest) -> Result<plist::Dictionary> {
@@ -335,19 +338,35 @@ impl<P: ReportPayload> AppleReportResponse<P> {
     }
 }
 
-impl AppleReportResponse<String> {
-    pub fn get_encrypted_report(&self) -> Result<EncryptedReportPayload> {
-        let payload = b64.decode(&self.payload)?;
-        EncryptedReportPayload::deserialize(payload.as_slice().try_into().unwrap())
-    }
+impl TryInto<AppleReportResponse<EncryptedReportPayload>> for AppleReportResponse<String> {
+    type Error = anyhow::Error;
 
+    fn try_into(self) -> Result<AppleReportResponse<EncryptedReportPayload>, Self::Error> {
+        let payload_bytes = b64.decode(&self.payload)?;
+        let payload_deserialized =
+            EncryptedReportPayload::deserialize(payload_bytes.as_slice().try_into().unwrap());
+
+        match payload_deserialized {
+            Ok(payload) => Ok(AppleReportResponse {
+                date_published: self.date_published,
+                payload,
+                description: self.description.clone(),
+                id: self.id.clone(),
+                status_code: self.status_code,
+            }),
+            Err(err) => anyhow::bail!("failed to deserialize payload"),
+        }
+    }
+}
+
+impl AppleReportResponse<EncryptedReportPayload> {
     pub fn decrypt(
         &self,
         private_key: SecretKey,
     ) -> Result<AppleReportResponse<ReportPayloadAsReceived>> {
         Ok(AppleReportResponse {
             date_published: self.date_published,
-            payload: self.get_encrypted_report()?.decrypt(private_key)?,
+            payload: self.payload.decrypt(private_key)?,
             description: self.description.clone(),
             id: self.id.clone(),
             status_code: self.status_code,
