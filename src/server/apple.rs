@@ -354,7 +354,7 @@ impl TryInto<AppleReportResponse<EncryptedReportPayload>> for AppleReportRespons
                 id: self.id.clone(),
                 status_code: self.status_code,
             }),
-            Err(err) => anyhow::bail!("failed to deserialize payload"),
+            Err(_) => anyhow::bail!("failed to deserialize payload"),
         }
     }
 }
