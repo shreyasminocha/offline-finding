@@ -67,7 +67,7 @@ mod tests {
     use crate::{
         finder::FinderDevice,
         owner::OwnerDevice,
-        protocol::{Location, OfflineFindingPublicKey, ReportData},
+        protocol::{Coordinate, Location, OfflineFindingPublicKey, ReportData},
     };
 
     use super::*;
@@ -77,8 +77,8 @@ mod tests {
         let finder_device = FinderDevice();
 
         let location = Location {
-            latitude: 37.0,
-            longitude: 73.0,
+            latitude: Coordinate(37.0),
+            longitude: Coordinate(73.0),
             horizontal_accuracy: 5,
             status: 0,
         };
