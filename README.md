@@ -2,7 +2,9 @@
 
 > [!WARNING]
 >
-> Little-to-none documentation and testing. Proceed at your own risk.
+> Little-to-none documentation and testing.
+> Terrible error-handling.
+> Proceed at your own risk.
 
 ## CLI
 

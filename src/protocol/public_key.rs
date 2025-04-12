@@ -1,4 +1,5 @@
-use base64::{engine::general_purpose::STANDARD as b64, Engine};
+use anyhow::Result;
+use base64::{engine::general_purpose::STANDARD as b64, DecodeError, Engine};
 use p224::{
     elliptic_curve::sec1::{CompressedPoint, Tag, ToEncodedPoint},
     NistP224, PublicKey, SecretKey,
@@ -6,6 +7,20 @@ use p224::{
 use sha2_pre::{Digest, Sha256};
 
 const TWO_MOST_SIGNIFICANT_BITS_MASK: u8 = 0b11000000;
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+pub struct OfflineFindingPublicKeyId([u8; 32]);
+
+impl OfflineFindingPublicKeyId {
+    #[cfg(feature = "std")]
+    pub fn to_base64(&self) -> crate::std::string::String {
+        b64.encode(self.0)
+    }
+
+    pub fn try_from_base64(value: &str) -> Result<Self, DecodeError> {
+        Ok(Self(b64.decode(value)?.try_into().unwrap()))
+    }
+}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct OfflineFindingPublicKey(pub [u8; 28]);
@@ -62,8 +77,13 @@ impl OfflineFindingPublicKey {
         data
     }
 
-    pub fn hash(&self) -> [u8; 32] {
-        Sha256::digest(self.0).0
+    pub fn hash(&self) -> OfflineFindingPublicKeyId {
+        OfflineFindingPublicKeyId(Sha256::digest(self.0).0)
+    }
+
+    pub fn try_from_base64(value: &str) -> Result<Self> {
+        let decoded = b64.decode(value).unwrap();
+        Ok(Self(decoded.try_into().unwrap()))
     }
 }
 
@@ -190,10 +210,10 @@ mod tests {
 
         assert_eq!(
             of_public_key.hash(),
-            decode!(
+            OfflineFindingPublicKeyId(decode!(
                 Decoder::Base64,
                 b"RwPKNxB/wNDVZuQ8UEmKb2KHdakTHDNPTEvZ2kxRFvQ="
-            )
+            ))
         );
     }
 

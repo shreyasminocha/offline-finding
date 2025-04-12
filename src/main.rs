@@ -4,7 +4,10 @@ use clap::{Args, Parser, Subcommand};
 
 use offline_finding::{
     p224::SecretKey,
-    protocol::{EncryptedReportPayload, OfflineFindingPublicKey, ReportPayloadAsReceived},
+    protocol::{
+        EncryptedReportPayload, OfflineFindingPublicKey, OfflineFindingPublicKeyId,
+        ReportPayloadAsReceived,
+    },
     server::{AppleReportResponse, AppleReportsServer, RemoteAnisetteProvider},
 };
 
@@ -74,37 +77,35 @@ async fn main() -> Result<()> {
                 hashed_public_keys,
             } = identifiers;
 
-            let hashed_of_public_keys = match (private_keys, public_keys, hashed_public_keys) {
-                (Some(sks), _, _) => sks
-                    .into_iter()
-                    .map(|sk| {
-                        let decoded = b64.decode(sk).unwrap();
-                        let public_key = SecretKey::from_slice(&decoded).unwrap().public_key();
-                        let of_public_key = OfflineFindingPublicKey::from(&public_key);
+            let hashed_of_public_keys: Vec<_> =
+                match (private_keys, public_keys, hashed_public_keys) {
+                    (Some(sks), _, _) => sks
+                        .into_iter()
+                        .map(|sk| {
+                            let decoded = b64.decode(sk).unwrap();
+                            let secret_key = SecretKey::from_slice(&decoded).unwrap();
+                            let of_public_key = OfflineFindingPublicKey::from(&secret_key);
 
-                        of_public_key.hash()
-                    })
-                    .collect(),
-                (_, Some(pks), _) => pks
-                    .into_iter()
-                    .map(|pk| {
-                        let decoded = b64.decode(pk).unwrap();
-                        let ofpk: &[u8; 28] = decoded.as_slice().try_into().unwrap();
-                        let public_key =
-                            offline_finding::p224::PublicKey::from(&OfflineFindingPublicKey(*ofpk));
-                        let of_public_key = OfflineFindingPublicKey::from(&public_key);
+                            of_public_key.hash()
+                        })
+                        .collect(),
+                    (_, Some(pks), _) => pks
+                        .into_iter()
+                        .map(|pk| {
+                            let of_public_key =
+                                OfflineFindingPublicKey::try_from_base64(pk).unwrap();
 
-                        of_public_key.hash()
-                    })
-                    .collect(),
-                (_, _, Some(hpks)) => hpks
-                    .into_iter()
-                    .map(|hpk| b64.decode(hpk).unwrap().as_slice().try_into().unwrap())
-                    .collect(),
-                _ => unreachable!("clap shouldn't let this happen"),
-            };
+                            of_public_key.hash()
+                        })
+                        .collect(),
+                    (_, _, Some(hpks)) => hpks
+                        .into_iter()
+                        .map(|hpk| OfflineFindingPublicKeyId::try_from_base64(hpk).unwrap())
+                        .collect(),
+                    _ => unreachable!("clap shouldn't let this happen"),
+                };
 
-            let raw_reports = driver.fetch_raw_reports(hashed_of_public_keys).await?;
+            let raw_reports = driver.fetch_raw_reports(&hashed_of_public_keys).await?;
             for raw_report in raw_reports {
                 println!("{:?}", raw_report);
             }
@@ -119,7 +120,7 @@ async fn main() -> Result<()> {
                 .map(|sk| SecretKey::from_slice(b64.decode(sk).unwrap().as_slice()).unwrap())
                 .collect();
 
-            let decrypted_reports = driver.fetch_reports(decoded_private_keys).await?;
+            let decrypted_reports = driver.fetch_reports(&decoded_private_keys).await?;
             for report in decrypted_reports {
                 println!("{:?}", report);
             }
@@ -142,35 +143,25 @@ impl AppleOfflineFinding {
 
     async fn fetch_raw_reports(
         &self,
-        public_key_hashes: Vec<[u8; 32]>,
+        public_key_hashes: &[OfflineFindingPublicKeyId],
     ) -> Result<Vec<AppleReportResponse<EncryptedReportPayload>>> {
         let anisette_provider = RemoteAnisetteProvider::new(self.anisette_server.as_str());
         let mut server = AppleReportsServer::new(anisette_provider);
         // server.login("foo@example.com", "password").await.unwrap();
 
-        server.fetch_raw_reports(&public_key_hashes).await
+        server.fetch_raw_reports(public_key_hashes).await
     }
 
     async fn fetch_reports(
         &self,
-        ephemeral_private_keys: Vec<SecretKey>,
+        ephemeral_private_keys: &[SecretKey],
     ) -> Result<Vec<AppleReportResponse<ReportPayloadAsReceived>>> {
         let anisette_provider = RemoteAnisetteProvider::new(self.anisette_server.as_str());
         let mut server = AppleReportsServer::new(anisette_provider);
         // server.login("foo@example.com", "password").await.unwrap();
 
-        let key_hash_pairs: Vec<_> = ephemeral_private_keys
-            .into_iter()
-            .map(|epk| {
-                (
-                    epk.clone(),
-                    OfflineFindingPublicKey::from(&epk.public_key()).hash(),
-                )
-            })
-            .collect();
-
         server
-            .fetch_and_decrypt_reports(key_hash_pairs.as_slice())
+            .fetch_and_decrypt_reports(ephemeral_private_keys)
             .await
     }
 }

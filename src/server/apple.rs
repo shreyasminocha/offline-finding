@@ -1,10 +1,9 @@
 use crate::{
-    protocol::ReportPayload,
+    protocol::{OfflineFindingPublicKey, OfflineFindingPublicKeyId, ReportPayload},
     std::{
         collections::HashMap,
         env,
         string::{String, ToString},
-        vec,
         vec::Vec,
     },
 };
@@ -150,26 +149,28 @@ impl AppleReportsServer {
 
     pub async fn fetch_and_decrypt_reports(
         &mut self,
-        // todo: we should just need the secret key; we can gen the id from the corresponding public key
-        keys_and_ids: &[(SecretKey, [u8; 32])],
+        keys: &[SecretKey],
     ) -> Result<Vec<AppleReportResponse<ReportPayloadAsReceived>>> {
-        let ids: Vec<[u8; 32]> = keys_and_ids.iter().map(|(_, id)| *id).collect();
-        let id_to_key = HashMap::<[u8; 32], SecretKey>::from_iter(
-            keys_and_ids.iter().map(|(key, id)| (*id, key.clone())),
-        );
+        let ids_and_keys = keys.iter().map(|key| {
+            (
+                OfflineFindingPublicKey::from(&key.public_key()).hash(),
+                key.clone(),
+            )
+        });
+
+        let id_to_key = HashMap::<OfflineFindingPublicKeyId, SecretKey>::from_iter(ids_and_keys);
+        let ids: Vec<OfflineFindingPublicKeyId> = id_to_key.keys().copied().collect();
+
         let raw_reports = self.fetch_raw_reports(ids.as_slice()).await.unwrap();
 
         let decrypted_reports: Result<Vec<AppleReportResponse<ReportPayloadAsReceived>>> =
             raw_reports
                 .iter()
                 .map(|raw_report| {
-                    let id_in_report = b64.decode(&raw_report.id).unwrap();
-                    let id_in_report: &[u8; 32] = id_in_report
-                        .as_slice()
-                        .try_into()
-                        .expect("it should be a 32-byte hash");
+                    let id_in_report =
+                        OfflineFindingPublicKeyId::try_from_base64(&raw_report.id).unwrap();
                     let ephemeral_private_key = id_to_key
-                        .get(id_in_report)
+                        .get(&id_in_report)
                         .expect("we shouldn't be receiving reports from IDs we didn't ask for");
 
                     raw_report.decrypt((*ephemeral_private_key).clone())
@@ -181,7 +182,7 @@ impl AppleReportsServer {
 
     pub async fn fetch_raw_reports(
         &mut self,
-        ids: &[[u8; 32]],
+        ids: &[OfflineFindingPublicKeyId],
     ) -> Result<Vec<AppleReportResponse<EncryptedReportPayload>>> {
         let headers = self.anisette_provider.get_headers(false).await;
 
@@ -192,7 +193,7 @@ impl AppleReportsServer {
                 // these timestamps are ignored by the server as of April 2025
                 start_date: now - Duration::days(10),
                 end_date: now,
-                ids: ids.iter().map(|id| b64.encode(id)).collect::<Vec<_>>(),
+                ids: ids.iter().map(|id| id.to_base64()).collect::<Vec<_>>(),
             }],
         };
 
@@ -334,12 +335,6 @@ pub struct AppleReportResponse<P: ReportPayload> {
     id: String,
     #[serde(rename = "statusCode")]
     status_code: u8,
-}
-
-impl<P: ReportPayload> AppleReportResponse<P> {
-    pub fn id(&self) -> [u8; 32] {
-        b64.decode(self.id.clone()).unwrap().try_into().unwrap()
-    }
 }
 
 impl TryInto<AppleReportResponse<EncryptedReportPayload>> for AppleReportResponse<String> {
