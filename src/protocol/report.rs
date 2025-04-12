@@ -2,6 +2,7 @@ use core::fmt::Debug;
 
 use anyhow::Result;
 use base64::{engine::general_purpose::STANDARD as b64, Engine as _};
+use chrono::{DateTime, Duration, Utc};
 use p224::{
     elliptic_curve::sec1::{FromEncodedPoint, ToEncodedPoint},
     EncodedPoint, PublicKey, SecretKey,
@@ -19,13 +20,13 @@ impl ReportPayload for std::string::String {}
 
 #[derive(Debug)]
 pub struct ReportData {
-    pub timestamp: u32,
+    pub timestamp: DateTime<Utc>,
     pub confidence: u8,
     pub location: Location,
 }
 
 pub struct ReportPayloadAsReceived {
-    pub timestamp: u32,
+    pub timestamp: DateTime<Utc>,
     pub confidence: u8,
     pub finder_public_key: OfflineFindingPublicKey,
     pub location: Location,
@@ -45,7 +46,7 @@ impl Debug for ReportPayloadAsReceived {
 }
 
 pub struct EncryptedReportPayload {
-    pub timestamp: u32,
+    pub timestamp: DateTime<Utc>,
     pub confidence: u8,
     /// Finder device's ephemeral public key from the keypair that was used during the location encryption process.
     pub finder_public_key: PublicKey,
@@ -123,10 +124,14 @@ impl From<SerializedEncryptedReportPayload> for crate::std::vec::Vec<u8> {
 
 impl EncryptedReportPayload {
     pub fn serialize(&self) -> SerializedEncryptedReportPayload {
+        let seconds: u32 = (self.timestamp - Duration::days(11323))
+            .timestamp()
+            .try_into()
+            .unwrap();
         let point = self.finder_public_key.to_encoded_point(false);
 
         let mut output = [0; 88];
-        output[0..4].copy_from_slice(&self.timestamp.to_le_bytes());
+        output[0..4].copy_from_slice(&seconds.to_be_bytes());
         output[4] = self.confidence;
         output[5..62].copy_from_slice(point.as_bytes());
         output[62..72].copy_from_slice(&self.encrypted_location);
@@ -143,7 +148,11 @@ impl EncryptedReportPayload {
             }
         };
 
-        let timestamp = u32::from_le_bytes(bytes[0..4].try_into().expect("correctly-sized slice"));
+        let seconds = u32::from_be_bytes(bytes[0..4].try_into().expect("correctly-sized slice"));
+        let duration_since_epoch =
+            Duration::new(seconds as i64, 0).unwrap() + Duration::days(11323);
+        let timestamp = DateTime::from_timestamp(duration_since_epoch.num_seconds(), 0).unwrap();
+
         let confidence = bytes[4];
         let finder_public_key =
             PublicKey::from_encoded_point(&EncodedPoint::from_bytes(&bytes[5..62]).unwrap())
@@ -211,7 +220,9 @@ mod tests {
     #[test]
     fn test_serialized_encrypted_report_length() {
         let encrypted_report = EncryptedReportPayload {
-            timestamp: 0,
+            timestamp: DateTime::parse_from_rfc3339("2025-01-01T16:39:57Z")
+                .expect("it's a valid date")
+                .into(),
             confidence: 0,
             finder_public_key: ecdh::EphemeralSecret::random(&mut rand::rngs::OsRng).public_key(),
             encrypted_location: [0; 10],

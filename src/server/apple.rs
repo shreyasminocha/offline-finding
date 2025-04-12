@@ -11,6 +11,7 @@ use crate::{
 
 use anyhow::Result;
 use base64::{engine::general_purpose::STANDARD as b64, Engine as _};
+use chrono::{DateTime, Duration, Local, Utc};
 use p224::SecretKey;
 use rand::{rngs::OsRng, RngCore};
 use reqwest::{header::HeaderMap, Client};
@@ -184,10 +185,13 @@ impl AppleReportsServer {
     ) -> Result<Vec<AppleReportResponse<EncryptedReportPayload>>> {
         let headers = self.anisette_provider.get_headers(false).await;
 
+        let now = Local::now().into();
         let fetch_request = ReportFetchRequest {
             search: vec![ReportSearch {
-                start_date: 0, // TODO: unhardcode (but it's ignored anyway)
-                end_date: 0,
+                // apple's supposed to return reports from the last 7
+                // these timestamps are ignored by the server as of April 2025
+                start_date: now - Duration::days(10),
+                end_date: now,
                 ids: ids.iter().map(|id| b64.encode(id)).collect::<Vec<_>>(),
             }],
         };
@@ -323,8 +327,8 @@ impl AppleReportsServer {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AppleReportResponse<P: ReportPayload> {
-    #[serde(rename = "datePublished")]
-    date_published: u64, // TODO: swap this out for a date struct
+    #[serde(rename = "datePublished", with = "chrono::serde::ts_milliseconds")]
+    date_published: DateTime<Utc>,
     pub payload: P,
     description: String,
     id: String,
@@ -423,9 +427,9 @@ pub struct ReportFetchRequest {
 
 #[derive(Serialize, Deserialize)]
 pub struct ReportSearch {
-    #[serde(rename = "startDate")]
-    start_date: u64,
-    #[serde(rename = "endDate")]
-    end_date: u64,
+    #[serde(rename = "startDate", with = "chrono::serde::ts_milliseconds")]
+    start_date: DateTime<Utc>,
+    #[serde(rename = "endDate", with = "chrono::serde::ts_milliseconds")]
+    end_date: DateTime<Utc>,
     ids: Vec<String>,
 }

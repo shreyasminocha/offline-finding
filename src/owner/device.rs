@@ -31,7 +31,7 @@ impl OwnerDevice {
         let entropy = finder_public_key_point.as_bytes();
 
         ansi_x963_kdf::derive_key_into::<Sha256>(
-            shared_secret.raw_secret_bytes(),
+            shared_secret.raw_secret_bytes().as_slice(),
             entropy,
             &mut symmetric_key,
         )?;
@@ -62,6 +62,8 @@ impl OwnerDevice {
 
 #[cfg(test)]
 mod tests {
+    use chrono::DateTime;
+
     use crate::{
         finder::FinderDevice,
         owner::OwnerDevice,
@@ -90,7 +92,9 @@ mod tests {
                 &mut rand::rngs::OsRng,
                 &accessory_public_key,
                 &ReportData {
-                    timestamp: 1000,
+                    timestamp: DateTime::parse_from_rfc3339("2025-01-01T16:39:57Z")
+                        .expect("it's a valid date")
+                        .into(),
                     confidence: 1,
                     location: location.clone(),
                 },

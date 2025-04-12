@@ -21,6 +21,7 @@ std = [
 	"hex/std",
 	"rand/std",
 	"cbc/std",
+	"chrono/serde",
 	"serde_json/std",
 	"serde/derive",
 ]
