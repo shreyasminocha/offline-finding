@@ -74,7 +74,6 @@ mod tests {
 
     use crate::{
         finder::FinderDevice,
-        owner::OwnerDevice,
         protocol::{Coordinate, Location},
     };
 
@@ -110,11 +109,7 @@ mod tests {
         assert_eq!(encrypted_report.timestamp, report.timestamp);
         assert_eq!(encrypted_report.confidence, report.confidence);
 
-        let owner_device = OwnerDevice();
-        let decrypted_report = owner_device
-            .decrypt_report(&accessory_secret_key, &encrypted_report)
-            .unwrap();
-
+        let decrypted_report = encrypted_report.decrypt(&accessory_secret_key).unwrap();
         assert_eq!(decrypted_report.location, location);
     }
 }

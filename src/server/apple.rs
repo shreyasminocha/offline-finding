@@ -370,7 +370,7 @@ impl AppleReportResponse<EncryptedReportPayload> {
     ) -> Result<AppleReportResponse<ReportPayloadAsReceived>> {
         Ok(AppleReportResponse {
             date_published: self.date_published,
-            payload: self.payload.decrypt(private_key)?,
+            payload: self.payload.decrypt(&private_key)?,
             description: self.description.clone(),
             id: self.id.clone(),
             status_code: self.status_code,

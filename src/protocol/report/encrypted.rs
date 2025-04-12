@@ -1,14 +1,17 @@
 use core::fmt::Debug;
 
-use anyhow::Result;
+use aes_gcm::{aead::AeadMutInPlace, Key, KeyInit};
+use anyhow::{anyhow, Result};
 use base64::{engine::general_purpose::STANDARD as b64, Engine as _};
 use chrono::{DateTime, Duration, Utc};
 use p224::{
+    ecdh,
     elliptic_curve::sec1::{FromEncodedPoint, ToEncodedPoint},
     EncodedPoint, PublicKey, SecretKey,
 };
+use sha2_pre::Sha256;
 
-use crate::{owner::OwnerDevice, protocol::OfflineFindingPublicKey};
+use crate::protocol::{Aes, Location, OfflineFindingPublicKey};
 
 use super::{ReportPayload, ReportPayloadAsReceived, SerializedEncryptedReportPayload};
 
@@ -22,9 +25,40 @@ pub struct EncryptedReportPayload {
 }
 
 impl EncryptedReportPayload {
-    pub fn decrypt(&self, private_key: SecretKey) -> Result<ReportPayloadAsReceived> {
-        let owner_device = OwnerDevice(); // todo: do this stuff here directly
-        owner_device.decrypt_report(&private_key, &self)
+    pub fn decrypt(&self, accessory_private_key: &SecretKey) -> Result<ReportPayloadAsReceived> {
+        let finder_public_key = self.finder_public_key;
+
+        let shared_secret = ecdh::diffie_hellman(
+            accessory_private_key.to_nonzero_scalar(),
+            finder_public_key.as_affine(),
+        );
+
+        let mut symmetric_key = [0u8; 32];
+        let finder_public_key_point = self.finder_public_key.to_encoded_point(false);
+        let entropy = finder_public_key_point.as_bytes();
+
+        ansi_x963_kdf::derive_key_into::<Sha256>(
+            shared_secret.raw_secret_bytes().as_slice(),
+            entropy,
+            &mut symmetric_key,
+        )?;
+
+        let (encryption_key, iv) = symmetric_key.split_at(16);
+
+        let key = Key::<Aes>::from_slice(encryption_key);
+        let mut cipher = Aes::new(key);
+
+        let mut decrypted_location = self.encrypted_location; // bytes are `Copy`'ed here
+        cipher
+            .decrypt_in_place_detached(iv.into(), &[], &mut decrypted_location, (&self.tag).into())
+            .map_err(|e| anyhow!(e))?;
+
+        Ok(ReportPayloadAsReceived {
+            timestamp: self.timestamp,
+            confidence: self.confidence,
+            finder_public_key: (&finder_public_key).into(),
+            location: Location::from_bytes(&decrypted_location).unwrap(),
+        })
     }
 
     pub fn serialize(&self) -> SerializedEncryptedReportPayload {
@@ -93,5 +127,52 @@ impl Debug for EncryptedReportPayload {
             )
             .field("tag", &hex::encode_upper(&self.encrypted_location))
             .finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::DateTime;
+
+    use crate::{
+        finder::FinderDevice,
+        protocol::{Coordinate, Location, OfflineFindingPublicKey, ReportData},
+    };
+
+    use super::*;
+
+    #[test]
+    fn test_decrypt_encrypted_report() {
+        let accessory_secret_key = SecretKey::random(&mut rand::rngs::OsRng);
+        let accessory_public_key =
+            OfflineFindingPublicKey::from(&accessory_secret_key.public_key());
+
+        let location = Location {
+            latitude: Coordinate(37.0),
+            longitude: Coordinate(73.0),
+            horizontal_accuracy: 5,
+            status: 0,
+        };
+
+        let finder_device = FinderDevice();
+        let encrypted_report = finder_device
+            .encrypt_report(
+                &mut rand::rngs::OsRng,
+                &accessory_public_key,
+                &ReportData {
+                    timestamp: DateTime::parse_from_rfc3339("2025-01-01T16:39:57Z")
+                        .expect("it's a valid date")
+                        .into(),
+                    confidence: 1,
+                    location: location.clone(),
+                },
+            )
+            .unwrap();
+
+        let decrypted_report = encrypted_report.decrypt(&accessory_secret_key).unwrap();
+
+        assert_eq!(decrypted_report.timestamp, encrypted_report.timestamp);
+        assert_eq!(decrypted_report.confidence, encrypted_report.confidence);
+        assert_eq!(decrypted_report.location, location);
     }
 }
