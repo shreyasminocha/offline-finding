@@ -1,5 +1,4 @@
-use core::fmt::Debug;
-
+#[cfg(feature = "std")]
 use base64::{engine::general_purpose::STANDARD as b64, Engine as _};
 use chrono::{DateTime, Utc};
 
@@ -16,12 +15,13 @@ pub struct ReportPayloadAsReceived {
 
 impl ReportPayload for ReportPayloadAsReceived {}
 
-impl Debug for ReportPayloadAsReceived {
+#[cfg(feature = "std")]
+impl core::fmt::Debug for ReportPayloadAsReceived {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("ReportPayloadAsReceived")
             .field("timestamp", &self.timestamp)
             .field("confidence", &self.confidence)
-            .field("finder_public_key", &b64.encode(&self.finder_public_key.0))
+            .field("finder_public_key", &b64.encode(self.finder_public_key.0))
             .field("location", &self.location)
             .finish()
     }

@@ -80,7 +80,7 @@ async fn main() -> Result<()> {
             let hashed_of_public_keys: Vec<_> =
                 match (private_keys, public_keys, hashed_public_keys) {
                     (Some(sks), _, _) => sks
-                        .into_iter()
+                        .iter()
                         .map(|sk| {
                             let decoded = b64.decode(sk).unwrap();
                             let secret_key = SecretKey::from_slice(&decoded).unwrap();
@@ -90,7 +90,7 @@ async fn main() -> Result<()> {
                         })
                         .collect(),
                     (_, Some(pks), _) => pks
-                        .into_iter()
+                        .iter()
                         .map(|pk| {
                             let of_public_key =
                                 OfflineFindingPublicKey::try_from_base64(pk).unwrap();
@@ -99,7 +99,7 @@ async fn main() -> Result<()> {
                         })
                         .collect(),
                     (_, _, Some(hpks)) => hpks
-                        .into_iter()
+                        .iter()
                         .map(|hpk| OfflineFindingPublicKeyId::try_from_base64(hpk).unwrap())
                         .collect(),
                     _ => unreachable!("clap shouldn't let this happen"),
