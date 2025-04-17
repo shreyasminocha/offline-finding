@@ -2,7 +2,7 @@ run:
 	cargo run
 
 check:
-	cargo clippy
+	cargo hack clippy --feature-powerset
 	cargo fmt -- --check
 
 test:

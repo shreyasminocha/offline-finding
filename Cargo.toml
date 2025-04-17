@@ -8,7 +8,6 @@ default = ["std"]
 std = [
 	"dep:cbc",
 	"dep:clap",
-	"dep:chrono",
 	"dep:pbkdf2",
 	"dep:plist",
 	"dep:reqwest",
@@ -22,6 +21,8 @@ std = [
 	"rand/std",
 	"cbc/std",
 	"chrono/serde",
+	"chrono/now",
+	"chrono/clock",
 	"serde_json/std",
 	"serde/derive",
 ]
@@ -37,10 +38,7 @@ ansi-x963-kdf = { version = "0.0.1", default-features = false }
 anyhow = { version = "1.0.96", default-features = false }
 base64 = { version = "0.22.1", default-features = false }
 cbc = { version = "0.1.2", optional = true, default-features = false }
-chrono = { version = "0.4.40", optional = true, default-features = false, features = [
-	"now",
-	"clock",
-] }
+chrono = { version = "0.4.40", default-features = false }
 clap = { version = "4.5.34", optional = true, default-features = false, features = [
 	"color",
 	"error-context",

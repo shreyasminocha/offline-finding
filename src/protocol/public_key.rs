@@ -1,4 +1,6 @@
+#[cfg(feature = "std")]
 use anyhow::Result;
+#[cfg(feature = "std")]
 use base64::{engine::general_purpose::STANDARD as b64, DecodeError, Engine};
 use p224::{
     elliptic_curve::sec1::{CompressedPoint, Tag, ToEncodedPoint},
@@ -11,6 +13,8 @@ const TWO_MOST_SIGNIFICANT_BITS_MASK: u8 = 0b11000000;
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub struct OfflineFindingPublicKeyId([u8; 32]);
 
+// TODO this could work on no_std, but we don't really need it
+#[cfg(feature = "std")]
 impl OfflineFindingPublicKeyId {
     #[cfg(feature = "std")]
     pub fn to_base64(&self) -> crate::std::string::String {
@@ -81,6 +85,7 @@ impl OfflineFindingPublicKey {
         OfflineFindingPublicKeyId(Sha256::digest(self.0).0)
     }
 
+    #[cfg(feature = "std")]
     pub fn try_from_base64(value: &str) -> Result<Self> {
         let decoded = b64.decode(value).unwrap();
         Ok(Self(decoded.try_into().unwrap()))
@@ -137,6 +142,7 @@ impl From<&OfflineFindingPublicKey> for crate::std::string::String {
     }
 }
 
+#[cfg(feature = "std")]
 impl core::fmt::Debug for OfflineFindingPublicKey {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("OfflineFindingPublicKey")

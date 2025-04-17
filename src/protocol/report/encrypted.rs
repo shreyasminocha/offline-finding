@@ -1,7 +1,6 @@
-use core::fmt::Debug;
-
 use aes_gcm::{aead::AeadMutInPlace, Key, KeyInit};
 use anyhow::{anyhow, Result};
+#[cfg(feature = "std")]
 use base64::{engine::general_purpose::STANDARD as b64, Engine as _};
 use chrono::{DateTime, Duration, Utc};
 use p224::{
@@ -11,7 +10,9 @@ use p224::{
 };
 use sha2_pre::Sha256;
 
-use crate::protocol::{Aes, Location, OfflineFindingPublicKey};
+#[cfg(feature = "std")]
+use crate::protocol::OfflineFindingPublicKey;
+use crate::protocol::{Aes, Location};
 
 use super::{ReportPayload, ReportPayloadAsReceived, SerializedEncryptedReportPayload};
 
@@ -112,7 +113,8 @@ impl EncryptedReportPayload {
 
 impl ReportPayload for EncryptedReportPayload {}
 
-impl Debug for EncryptedReportPayload {
+#[cfg(feature = "std")]
+impl core::fmt::Debug for EncryptedReportPayload {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("EncryptedReportPayload")
             .field("timestamp", &self.timestamp)
@@ -123,9 +125,9 @@ impl Debug for EncryptedReportPayload {
             )
             .field(
                 "encrypted_location",
-                &hex::encode_upper(&self.encrypted_location),
+                &hex::encode_upper(self.encrypted_location),
             )
-            .field("tag", &hex::encode_upper(&self.encrypted_location))
+            .field("tag", &hex::encode_upper(self.encrypted_location))
             .finish()
     }
 }
