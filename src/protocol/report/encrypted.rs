@@ -96,9 +96,10 @@ impl EncryptedReportPayload {
         let bytes = match data {
             SerializedEncryptedReportPayload::LegacyFormat(bs) => bs,
             // TODO: what does the new byte encode?
-            SerializedEncryptedReportPayload::NewFormat(bs) => {
-                bs[1..].try_into().expect("89 - 1 == 88")
-            }
+            SerializedEncryptedReportPayload::NewFormat(bs) => [&bs[0..4], &bs[5..89]]
+                .concat()
+                .try_into()
+                .expect("(89 - 5) + (4 - 0) == 88"),
         };
 
         let seconds = u32::from_be_bytes(bytes[0..4].try_into().expect("correctly-sized slice"));
