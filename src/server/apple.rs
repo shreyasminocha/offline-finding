@@ -343,14 +343,17 @@ impl AppleReportsServer {
 pub struct AppleReportResponse<P: ReportPayload> {
     // TODO: see how it handles failures, and non-"found" reports
     /// Timestamp from when Apple's servers received the report.
-    #[serde(rename = "datePublished", with = "chrono::serde::ts_milliseconds")]
+    #[serde(
+        rename = "datePublished",
+        deserialize_with = "chrono::serde::ts_milliseconds::deserialize"
+    )]
     date_published: DateTime<Utc>,
     /// Report payload.
     pub payload: P,
     /// Description of the report, often `"found"``.
     description: String,
     /// The ID of the accessory's public key.
-    id: String,
+    pub id: String,
     /// The status code of this result.
     #[serde(rename = "statusCode")]
     status_code: u8,

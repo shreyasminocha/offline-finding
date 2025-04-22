@@ -40,6 +40,17 @@ impl OfflineFindingPublicKeyId {
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct OfflineFindingPublicKey(pub [u8; 28]);
 
+#[cfg(feature = "std")]
+impl serde::Serialize for OfflineFindingPublicKey {
+    fn serialize<S>(&self, serializer: S) -> core::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let s = b64.encode(self.0);
+        serializer.serialize_str(&s)
+    }
+}
+
 impl OfflineFindingPublicKey {
     /// Return the Bluetooth Low Energy address (as big-endian bytes) that an advertisement of the
     /// public key must be broadcast from.

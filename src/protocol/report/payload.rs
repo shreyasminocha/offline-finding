@@ -10,6 +10,7 @@ use super::{Location, ReportPayload};
 /// generated the report.
 ///
 /// This can be thought of as the unencrypted (or decrypted) version of [`EncryptedReportPayload`].
+#[cfg_attr(feature = "std", derive(serde::Serialize))]
 pub struct ReportPayloadAsReceived {
     /// Timestamp from when the report was constructed.
     pub timestamp: DateTime<Utc>,

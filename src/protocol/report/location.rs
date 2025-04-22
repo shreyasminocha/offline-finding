@@ -1,6 +1,7 @@
 use anyhow::Result;
 
 /// The location information included in offline finding reports.
+#[cfg_attr(feature = "std", derive(serde::Serialize))]
 #[derive(PartialEq, Debug, Clone)]
 pub struct Location {
     /// Latitude geographical coordinate.
@@ -14,6 +15,7 @@ pub struct Location {
 }
 
 /// A geographical coordinate.
+#[cfg_attr(feature = "std", derive(serde::Serialize))]
 #[derive(PartialEq, Debug, Clone)]
 pub struct Coordinate(pub f32);
 
