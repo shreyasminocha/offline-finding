@@ -1,5 +1,8 @@
+/// AES, as used for report encryption and decryption.
 mod aes;
+/// P224 public keys and IDs.
 mod public_key;
+/// FIndMy reports.
 mod report;
 
 pub use aes::Aes;

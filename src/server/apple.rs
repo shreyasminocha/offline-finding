@@ -22,6 +22,7 @@ use crate::protocol::{EncryptedReportPayload, ReportPayloadAsReceived};
 
 use super::anisette::RemoteAnisetteProvider;
 
+/// Interface for interacting with Apple's FIndMy servers.
 pub struct AppleReportsServer {
     client: Client,
     anisette_provider: RemoteAnisetteProvider,
@@ -147,6 +148,8 @@ impl AppleReportsServer {
         // TODO: implement 2FA
     }
 
+    /// Fetch and decrypt reports for the given ephemeral secret keys from an accessory or owner
+    /// device.
     pub async fn fetch_and_decrypt_reports(
         &mut self,
         keys: &[SecretKey],
@@ -180,6 +183,7 @@ impl AppleReportsServer {
         decrypted_reports
     }
 
+    /// Fetch encrypted reports by ID.
     pub async fn fetch_raw_reports(
         &mut self,
         ids: &[OfflineFindingPublicKeyId],
@@ -211,6 +215,7 @@ impl AppleReportsServer {
 
         #[derive(Deserialize, Debug)]
         struct Response {
+            /// Results of the report search.
             results: Vec<AppleReportResponse<String>>,
         }
 
@@ -223,6 +228,7 @@ impl AppleReportsServer {
             .collect()
     }
 
+    /// Perform a "grand slam" request.
     async fn gsa_request(&mut self, data: &GsaRequest) -> Result<plist::Dictionary> {
         let mut request_plist_request = plist::Dictionary::new();
 
@@ -326,13 +332,26 @@ impl AppleReportsServer {
     // }
 }
 
+/// A result from a search for FindMy reports.
+///
+/// As fetched from Apple's servers, the payload would be a base64 string. However, there are
+/// multiple valid ways of interpreting that payload, and it may be useful to be able to decrypt
+/// that payload without losing the surrounding context of the report fetching result. Therefore,
+/// we use the generic parameter `P` to be able to hold one of the multiple valid payload
+/// representations.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AppleReportResponse<P: ReportPayload> {
+    // TODO: see how it handles failures, and non-"found" reports
+    /// Timestamp from when Apple's servers received the report.
     #[serde(rename = "datePublished", with = "chrono::serde::ts_milliseconds")]
     date_published: DateTime<Utc>,
+    /// Report payload.
     pub payload: P,
+    /// Description of the report, often `"found"``.
     description: String,
+    /// The ID of the accessory's public key.
     id: String,
+    /// The status code of this result.
     #[serde(rename = "statusCode")]
     status_code: u8,
 }
@@ -359,6 +378,7 @@ impl TryInto<AppleReportResponse<EncryptedReportPayload>> for AppleReportRespons
 }
 
 impl AppleReportResponse<EncryptedReportPayload> {
+    /// Attempt to decrypt the encrypted payload included in a report search result.
     pub fn decrypt(
         &self,
         private_key: SecretKey,
@@ -420,11 +440,15 @@ pub struct ReportFetchRequest {
     search: Vec<ReportSearch>,
 }
 
+/// Parameters for performing a search for reports.
 #[derive(Serialize, Deserialize)]
 pub struct ReportSearch {
+    /// Lower bound on the timestamps of reports.
     #[serde(rename = "startDate", with = "chrono::serde::ts_milliseconds")]
     start_date: DateTime<Utc>,
+    /// Upper bound on the timestamps of reports.
     #[serde(rename = "endDate", with = "chrono::serde::ts_milliseconds")]
     end_date: DateTime<Utc>,
+    /// IDs of public keys to fetch reports for.
     ids: Vec<String>,
 }

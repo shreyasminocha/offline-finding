@@ -2,7 +2,7 @@
 
 > [!WARNING]
 >
-> Little-to-none documentation and testing.
+> Little-to-none testing.
 > Terrible error-handling.
 > Proceed at your own risk.
 

@@ -12,9 +12,11 @@ use sha2_pre::Sha256;
 
 use crate::protocol::{Aes, EncryptedReportPayload, OfflineFindingPublicKey, ReportData};
 
+/// An offline finding finder device that encrypts location reports for the public keys advertised by an [`Accessory`].
 pub struct FinderDevice();
 
 impl FinderDevice {
+    /// Encrypt a report for the given public key using a randomly generated ephemeral key pair.
     pub fn encrypt_report(
         &self,
         csprng: &mut impl CryptoRngCore,

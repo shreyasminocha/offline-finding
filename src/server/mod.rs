@@ -1,3 +1,7 @@
+// TODO: remove these
+#![allow(missing_docs)]
+#![allow(clippy::missing_docs_in_private_items)]
+
 mod anisette;
 mod apple;
 

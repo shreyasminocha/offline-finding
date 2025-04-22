@@ -8,28 +8,41 @@ use p224::{
 };
 use sha2_pre::{Digest, Sha256};
 
+/// A bitmask with 'on' bytes in only the two most significant positions in a byte.
 const TWO_MOST_SIGNIFICANT_BITS_MASK: u8 = 0b11000000;
 
+/// A unique identifier for an offline finding public key. Defined to be the SHA256 hash of the
+/// public key.
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub struct OfflineFindingPublicKeyId([u8; 32]);
 
 // TODO this could work on no_std, but we don't really need it
 #[cfg(feature = "std")]
 impl OfflineFindingPublicKeyId {
+    /// Convert the ID to base64.
     #[cfg(feature = "std")]
     pub fn to_base64(&self) -> crate::std::string::String {
         b64.encode(self.0)
     }
 
+    /// Try to decode the ID from a base64 string.
     pub fn try_from_base64(value: &str) -> Result<Self, DecodeError> {
         Ok(Self(b64.decode(value)?.try_into().unwrap()))
     }
 }
 
+/// A P224 public key, as used in public finding.
+///
+/// The point compressed form of a P224 public key usually takes 29 bytes, using 28 bytes for
+/// encoding the x-coordinate and one byte for encoding the sign of the y-coordinate. However, in
+/// FindMy, the keys are only ever used for ECDH key exchanges, so the y-coordinate is irrelevant.
+/// So, the protocol just uses the 28-byte representation of the x-coordinate of the public key.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct OfflineFindingPublicKey(pub [u8; 28]);
 
 impl OfflineFindingPublicKey {
+    /// Return the Bluetooth Low Energy address (as big-endian bytes) that an advertisement of the
+    /// public key must be broadcast from.
     pub fn to_ble_address_bytes_be(&self) -> [u8; 6] {
         let mut addr_bytes_be: [u8; 6] = self
             .0
@@ -42,6 +55,8 @@ impl OfflineFindingPublicKey {
         addr_bytes_be
     }
 
+    /// Generate the Bluetooth Low Energy advertisement data to advertise the public key to
+    /// nearby finder devices.
     pub fn to_ble_advertisement_data(&self, metadata: BleAdvertisementMetadata) -> [u8; 29] {
         // From the OpenHaystack paper
         let mut data: [u8; 29] = [
@@ -81,10 +96,12 @@ impl OfflineFindingPublicKey {
         data
     }
 
+    /// Return the ID of the public key, defined as the SHA256 hash of the public key.
     pub fn hash(&self) -> OfflineFindingPublicKeyId {
         OfflineFindingPublicKeyId(Sha256::digest(self.0).0)
     }
 
+    /// Attempt to deserialize a base64 encoding of a public key.
     #[cfg(feature = "std")]
     pub fn try_from_base64(value: &str) -> Result<Self> {
         let decoded = b64.decode(value).unwrap();
@@ -164,9 +181,14 @@ impl From<&OfflineFindingPublicKey> for PublicKey {
     }
 }
 
+/// The metadata included in a lost tag advertisement in addition to the accessory's public key.
 pub struct BleAdvertisementMetadata {
+    /// Accessory status.
+    ///
+    /// Included as-is in the encrypted portion of reports.
     pub status: u8,
-    pub hint: u8,
+    /// Hint byte.
+    pub hint: u8, // TODO: figure out what this is supposed to be.
 }
 
 impl Default for BleAdvertisementMetadata {

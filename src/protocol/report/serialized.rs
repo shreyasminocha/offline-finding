@@ -1,6 +1,11 @@
+/// One of the two canonical representations of [`EncryptedReportPayload`].
 pub enum SerializedEncryptedReportPayload {
+    /// The 88-byte format documented in _Who can Find My Devices?_ (2021).
     LegacyFormat([u8; 88]),
-    NewFormat([u8; 89]), // https://github.com/MatthewKuKanich/FindMyFlipper/issues/61#issuecomment-2065003410
+    /// A new 89-byte format that includes an additional byte at index zero.
+    ///
+    /// See: https://github.com/MatthewKuKanich/FindMyFlipper/issues/61#issuecomment-2065003410
+    NewFormat([u8; 89]),
 }
 
 impl From<[u8; 88]> for SerializedEncryptedReportPayload {

@@ -16,16 +16,26 @@ use crate::protocol::{Aes, Location};
 
 use super::{ReportPayload, ReportPayloadAsReceived, SerializedEncryptedReportPayload};
 
+/// An offline finding report in its encrypted form.
+///
+/// This can be thought of as the encrypted version of [`ReportPayloadAsReceived`].
 pub struct EncryptedReportPayload {
+    /// Timestamp from when the report was constructed.
     pub timestamp: DateTime<Utc>,
+    /// Supposedly the degree of confidence in the accuracy of the location.
     pub confidence: u8,
-    /// Finder device's ephemeral public key from the keypair that was used during the location encryption process.
+    /// The finder device's ephemeral public key corresponding to the keypair that was used during the encryption of this report.
     pub finder_public_key: PublicKey,
+    /// The AES-GCM ciphertext for the encryption of the finder device's [`Location`].
     pub encrypted_location: [u8; 10],
+    /// The AES-GCM tag corresponding to the encrypted location.
     pub tag: [u8; 16],
 }
 
 impl EncryptedReportPayload {
+    /// Decrypt an encrypted report using the accessory's private key to complete the ECDH key exchange.
+    ///
+    /// In theory, a finder device's public key could also be used to decrypt the encrypted payload, but in practice, it's unlikely to ever be necessary.
     pub fn decrypt(&self, accessory_private_key: &SecretKey) -> Result<ReportPayloadAsReceived> {
         let finder_public_key = self.finder_public_key;
 
@@ -62,6 +72,7 @@ impl EncryptedReportPayload {
         })
     }
 
+    /// Serialize the encrypted report into its canonical 88-byte representation.
     pub fn serialize(&self) -> SerializedEncryptedReportPayload {
         let seconds: u32 = (self.timestamp - Duration::days(11323))
             .timestamp()
@@ -76,12 +87,15 @@ impl EncryptedReportPayload {
         output[62..72].copy_from_slice(&self.encrypted_location);
         output[72..88].copy_from_slice(&self.tag);
 
+        // TODO: support the new format too?
         SerializedEncryptedReportPayload::LegacyFormat(output)
     }
 
+    /// Deserialize the encrypted report from the canonical 88- or 89-byte representation.
     pub fn deserialize(data: SerializedEncryptedReportPayload) -> Result<Self> {
         let bytes = match data {
             SerializedEncryptedReportPayload::LegacyFormat(bs) => bs,
+            // TODO: what does the new byte encode?
             SerializedEncryptedReportPayload::NewFormat(bs) => {
                 bs[1..].try_into().expect("89 - 1 == 88")
             }

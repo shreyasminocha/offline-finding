@@ -1,3 +1,8 @@
+//! Command-line interface for fetching FindMy reports from Apple's servers.
+
+#![warn(missing_docs)]
+#![warn(clippy::missing_docs_in_private_items)]
+
 use anyhow::{bail, Result};
 use base64::{engine::general_purpose::STANDARD as b64, Engine as _};
 use clap::{Args, Parser, Subcommand};
@@ -11,6 +16,7 @@ use offline_finding::{
     server::{AppleReportResponse, AppleReportsServer, RemoteAnisetteProvider},
 };
 
+/// CLI to fetch FindMy reports.
 #[derive(Parser)]
 struct CliParser {
     /// Path to an anisette v3-compatible server.
@@ -27,15 +33,20 @@ enum Command {
     /// Fetch raw reports from Apple's server without decrypting them.
     FetchRawReports {
         #[command(flatten)]
+        /// Set of homogeneous key identifiers (e.g. public key IDs, private keys).
         identifiers: KeyIdentifiers,
     },
     /// Fetch reports from Apple's server by private key and decrypt them.
-    FetchReports { private_keys: Vec<String> },
+    FetchReports {
+        /// Base64-encoded accessory private keys.
+        private_keys: Vec<String>,
+    },
 }
 
 #[derive(Args)]
 #[group(required = true, multiple = false)]
 struct KeyIdentifiers {
+    // TODO: move the decoding of the identifiers into here. Having them all be `Vec<String>` is weird.
     /// Base64-encoded 28-byte P224 private keys.
     #[arg(
         long = "private-keys",
@@ -130,17 +141,21 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
+/// Interface to Apple's FindMy report-fetching functionality.
 struct AppleOfflineFinding {
+    /// Address to an Anisette v3-compatible Anisette server.
     anisette_server: String,
 }
 
 impl AppleOfflineFinding {
+    /// Construct a new interface to Apple's FindMy servers.
     fn new(anisette_server_address: String) -> Self {
         Self {
             anisette_server: anisette_server_address,
         }
     }
 
+    /// Fetch encrypted reports for the given public key IDs.
     async fn fetch_raw_reports(
         &self,
         public_key_hashes: &[OfflineFindingPublicKeyId],
@@ -152,6 +167,7 @@ impl AppleOfflineFinding {
         server.fetch_raw_reports(public_key_hashes).await
     }
 
+    /// Fetch and decrypt reports for the public keys corresponding to the given secret keys from the accessory or owner device.
     async fn fetch_reports(
         &self,
         ephemeral_private_keys: &[SecretKey],

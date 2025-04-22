@@ -7,16 +7,23 @@ use sha2_pre::Sha256;
 
 use crate::{accessory::Accessory, protocol::OfflineFindingPublicKey};
 
+/// 32-byte symmetric key.
 pub type SymmetricKey = [u8; 32];
 
+/// An accessory that mimics Apple FindMy's key rotation protocol.
 pub struct LegitAirtag {
+    /// The master beacon P224 secret key.
     master_beacon_private_key: SecretKey,
+    /// The master beacon 32-byte symmetric key.
     master_beacon_symmetric_key: SymmetricKey,
+    /// The ephemeral P224 secret key.
     current_private_key: SecretKey,
+    /// The ephemeral 32-byte symmetric key.
     current_symmetric_key: SymmetricKey,
 }
 
 impl LegitAirtag {
+    /// Construct a new [`LegitAirtag`] with the given master private and symmetric keys.
     pub fn new(master_private_key: SecretKey, master_symmetric_key: SymmetricKey) -> Self {
         let mut accessory = LegitAirtag {
             master_beacon_private_key: master_private_key.clone(),
@@ -31,6 +38,7 @@ impl LegitAirtag {
         accessory
     }
 
+    /// Generate a new random [`LegitAirtag`].
     pub fn random(csprng: &mut impl CryptoRngCore) -> Self {
         let master_beacon_private_key = SecretKey::random(csprng);
 
@@ -40,14 +48,17 @@ impl LegitAirtag {
         Self::new(master_beacon_private_key, master_beacon_symmetric_key)
     }
 
+    /// Return the master symmetric key.
     pub fn get_master_symmetric_key(&self) -> &SymmetricKey {
         &self.master_beacon_symmetric_key
     }
 
+    /// Return the master private key.
     pub fn get_master_private_key(&self) -> &SecretKey {
         &self.master_beacon_private_key
     }
 
+    /// Rotate keys just like Apple AirTags do, as documented in _Who Can Find My Devices?_ (2021).
     fn rotate_keys(&mut self) {
         // equation 1
         let mut new_symmetric_key = [0u8; 32];
@@ -82,6 +93,7 @@ impl LegitAirtag {
         self.current_symmetric_key = new_symmetric_key;
     }
 
+    /// Return the current ephemeral public key.
     fn get_current_public_key(&self) -> OfflineFindingPublicKey {
         OfflineFindingPublicKey::from(&self.current_private_key)
     }
