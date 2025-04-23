@@ -9,7 +9,7 @@ use super::{Location, ReportPayload};
 /// An offline finding report including the ephemeral public key of the finder device that
 /// generated the report.
 ///
-/// This can be thought of as the unencrypted (or decrypted) version of [`EncryptedReportPayload`].
+/// This can be thought of as the unencrypted (or decrypted) version of [`EncryptedReportPayload`](super::super::EncryptedReportPayload).
 #[cfg_attr(feature = "std", derive(serde::Serialize))]
 pub struct ReportPayloadAsReceived {
     /// Timestamp from when the report was constructed.

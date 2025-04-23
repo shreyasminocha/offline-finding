@@ -4,7 +4,7 @@ use super::Location;
 
 /// The data included in an offline finding report.
 ///
-/// Unlike [`ReportPayloadAsReceived`], this struct does not include the finder's public key.
+/// Unlike [`ReportPayloadAsReceived`](super::payload::ReportPayloadAsReceived), this struct does not include the finder's public key.
 /// This is intended to be a finder-agnostic representation of the report data and may be used by a
 /// finder to prepare an encrypted report.
 #[derive(Debug)]
