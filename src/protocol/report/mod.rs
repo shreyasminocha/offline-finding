@@ -6,6 +6,8 @@ mod encrypted;
 mod location;
 /// The pre-encryption or post-decryption form of a FindMy report.
 mod payload;
+/// Batches of reports as uploaded to the server
+mod publish;
 /// The serialized form of an encrypted FindMy report.
 mod serialized;
 
@@ -13,6 +15,7 @@ pub use data::ReportData;
 pub use encrypted::EncryptedReportPayload;
 pub use location::{Coordinate, Location};
 pub use payload::ReportPayloadAsReceived;
+pub use publish::{parse_and_decrypt_publish, parse_publish};
 pub use serialized::SerializedEncryptedReportPayload;
 
 /// A representation of the payload included in a FindMy report, e.g. encrypted or decrypted,

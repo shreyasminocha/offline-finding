@@ -37,7 +37,7 @@ impl OfflineFindingPublicKeyId {
 /// encoding the x-coordinate and one byte for encoding the sign of the y-coordinate. However, in
 /// FindMy, the keys are only ever used for ECDH key exchanges, so the y-coordinate is irrelevant.
 /// So, the protocol just uses the 28-byte representation of the x-coordinate of the public key.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct OfflineFindingPublicKey(pub [u8; 28]);
 
 #[cfg(feature = "std")]

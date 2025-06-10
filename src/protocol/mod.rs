@@ -10,6 +10,6 @@ pub use public_key::{
     BleAdvertisementMetadata, OfflineFindingPublicKey, OfflineFindingPublicKeyId,
 };
 pub use report::{
-    Coordinate, EncryptedReportPayload, Location, ReportData, ReportPayload,
-    ReportPayloadAsReceived,
+    parse_and_decrypt_publish, parse_publish, Coordinate, EncryptedReportPayload, Location,
+    ReportData, ReportPayload, ReportPayloadAsReceived,
 };
