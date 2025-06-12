@@ -14,7 +14,7 @@ const TWO_MOST_SIGNIFICANT_BITS_MASK: u8 = 0b11000000;
 /// A unique identifier for an offline finding public key. Defined to be the SHA256 hash of the
 /// public key.
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
-pub struct OfflineFindingPublicKeyId([u8; 32]);
+pub struct OfflineFindingPublicKeyId(pub [u8; 32]);
 
 // TODO this could work on no_std, but we don't really need it
 #[cfg(feature = "std")]

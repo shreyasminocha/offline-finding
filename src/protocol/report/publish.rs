@@ -1,13 +1,15 @@
 use super::{EncryptedReportPayload, ReportPayloadAsReceived, SerializedEncryptedReportPayload};
+use crate::protocol::OfflineFindingPublicKeyId;
 use anyhow::{bail, Result};
-use p224::SecretKey;
 use std::vec::Vec;
 
 /// Size of a publish chunk as found empirically
 const PUBLISH_SIZE: usize = 120;
 
 /// parse_publish converts the raw bytes uploaded to a server into usable data
-pub fn parse_publish(data: &[u8]) -> Result<Vec<EncryptedReportPayload>> {
+pub fn parse_publish(
+    data: &[u8],
+) -> Result<Vec<(OfflineFindingPublicKeyId, EncryptedReportPayload)>> {
     // Heinrich et al. Section 6.3
     if data[0..3] != [0x0f, 0x8a, 0xe0] {
         bail!("First bytes did not match header");
@@ -24,24 +26,11 @@ pub fn parse_publish(data: &[u8]) -> Result<Vec<EncryptedReportPayload>> {
 
     let mut reports = Vec::new();
     for chunk in data.chunks_exact(PUBLISH_SIZE) {
+        let hashed_tag_pub_key = OfflineFindingPublicKeyId(chunk[..32].try_into().unwrap());
         let serialized =
             SerializedEncryptedReportPayload::from(TryInto::<[u8; 88]>::try_into(&chunk[32..120])?);
         let report = EncryptedReportPayload::deserialize(serialized)?;
-        reports.push(report);
-    }
-    Ok(reports)
-}
-
-/// parse_and_decrypt_publish converts raw bytes uploaded to the server into decrypted reports
-pub fn parse_and_decrypt_publish(
-    data: &[u8],
-    key: &SecretKey,
-) -> Result<Vec<ReportPayloadAsReceived>> {
-    let encrypted_reports = parse_publish(data)?;
-    let mut reports = Vec::new();
-    for enc in encrypted_reports.iter() {
-        let dec = enc.decrypt(key)?;
-        reports.push(dec);
+        reports.push((hashed_tag_pub_key, report));
     }
     Ok(reports)
 }
