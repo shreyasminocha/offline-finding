@@ -118,7 +118,7 @@ async fn main() -> Result<()> {
 
             let raw_reports = driver.fetch_raw_reports(&hashed_of_public_keys).await?;
             for raw_report in raw_reports {
-                println!("{:?}", raw_report);
+                println!("{raw_report:?}");
             }
         }
         Command::FetchReports { private_keys } => {
@@ -133,7 +133,7 @@ async fn main() -> Result<()> {
 
             let decrypted_reports = driver.fetch_reports(&decoded_private_keys).await?;
             for report in decrypted_reports {
-                println!("{:?}", report);
+                println!("{report:?}");
             }
         }
     }

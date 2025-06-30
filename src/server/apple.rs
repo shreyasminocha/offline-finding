@@ -8,7 +8,7 @@ use crate::{
     },
 };
 
-use anyhow::Result;
+use anyhow::{bail, Result};
 use base64::{engine::general_purpose::STANDARD as b64, Engine as _};
 use chrono::{DateTime, Duration, Local, Utc};
 use p224::SecretKey;
@@ -17,6 +17,9 @@ use reqwest::{header::HeaderMap, Client};
 use serde::{Deserialize, Serialize};
 use sha2_stable::Digest;
 use srp::{client::SrpClient, groups::G_2048};
+
+#[cfg(feature = "std")]
+use geojson::{Feature, Geometry, JsonObject, Value};
 
 use crate::protocol::{EncryptedReportPayload, ReportPayloadAsReceived};
 
@@ -220,6 +223,9 @@ impl AppleReportsServer {
         }
 
         let response = request.send().await?;
+        if !response.status().is_success() {
+            bail!("request failed: {}", response.status());
+        }
         let body: Response = response.json().await?;
 
         body.results
@@ -393,6 +399,25 @@ impl AppleReportResponse<EncryptedReportPayload> {
             id: self.id.clone(),
             status_code: self.status_code,
         })
+    }
+}
+
+impl AppleReportResponse<ReportPayloadAsReceived> {
+    #[cfg(feature = "std")]
+    pub fn to_geojson(&self) -> Feature {
+        let json_props: JsonObject =
+            serde_json::from_str(&serde_json::to_string(self).unwrap()).unwrap();
+        let loc = &self.payload.location;
+        Feature {
+            bbox: None,
+            geometry: Some(Geometry::new(Value::Point(vec![
+                loc.longitude.0 as f64,
+                loc.latitude.0 as f64,
+            ]))),
+            id: None,
+            properties: Some(json_props),
+            foreign_members: None,
+        }
     }
 }
 

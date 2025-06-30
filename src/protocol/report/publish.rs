@@ -1,4 +1,6 @@
-use super::{EncryptedReportPayload, ReportPayloadAsReceived, SerializedEncryptedReportPayload};
+#![cfg(feature = "std")]
+
+use super::{EncryptedReportPayload, SerializedEncryptedReportPayload};
 use crate::protocol::OfflineFindingPublicKeyId;
 use anyhow::{bail, Result};
 use std::vec::Vec;

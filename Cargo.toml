@@ -25,6 +25,7 @@ std = [
 	"chrono/clock",
 	"serde_json/std",
 	"serde/derive",
+	"geojson",
 ]
 
 [[bin]]
@@ -47,6 +48,7 @@ clap = { version = "4.5.34", optional = true, default-features = false, features
 	"usage",
 	"derive",
 ] }
+geojson = { version = "0.24.2", optional = true }
 hex = { version = "0.4.3", default-features = false }
 hmac = "0.12.1"
 num-bigint = { version = "0.4.6", default-features = false }

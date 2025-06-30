@@ -15,8 +15,10 @@ pub use data::ReportData;
 pub use encrypted::EncryptedReportPayload;
 pub use location::{Coordinate, Location};
 pub use payload::ReportPayloadAsReceived;
-pub use publish::parse_publish;
 pub use serialized::SerializedEncryptedReportPayload;
+
+#[cfg(feature = "std")]
+pub use publish::parse_publish;
 
 /// A representation of the payload included in a FindMy report, e.g. encrypted or decrypted,
 /// serialized or deserialized.
