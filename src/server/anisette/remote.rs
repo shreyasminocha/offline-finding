@@ -30,18 +30,20 @@ impl RemoteAnisetteProvider {
     }
 
     pub async fn get_headers(&mut self, with_client_info: bool) -> HeaderMap {
-        let request = self.client.get(&self.endpoint);
-        let response = request.send().await.unwrap();
+        if self.anisette_data.is_empty() {
+            let request = self.client.get(&self.endpoint);
+            let response = request.send().await.unwrap();
 
-        // TODO: cache this
-        let response_body: serde_json::Map<String, serde_json::Value> =
-            response.json().await.unwrap();
+            // TODO: cache this
+            let response_body: serde_json::Map<String, serde_json::Value> =
+                response.json().await.unwrap();
 
-        self.anisette_data = HashMap::from_iter(
-            response_body
-                .into_iter()
-                .map(|(k, v)| (k, v.as_str().unwrap().to_string())),
-        );
+            self.anisette_data = HashMap::from_iter(
+                response_body
+                    .into_iter()
+                    .map(|(k, v)| (k, v.as_str().unwrap().to_string())),
+            );
+        }
 
         let mut headers = HeaderMap::with_capacity(15);
         for (k, v) in &self.anisette_data {
